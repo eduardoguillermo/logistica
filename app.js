@@ -180,11 +180,11 @@ function requireAdmin(fn){
 (function(){
   if(DB.config.loginDeshabilitado){
     _usuarioActual={nombre:'dev',rol:'Administrador'};
-    var ls=document.getElementById('login-screen');
-    if(ls) ls.classList.add('hidden');
     _iniciarApp();
   } else {
-    // Enfocar campo usuario
+    // Mostrar pantalla de login
+    var ls=document.getElementById('login-screen');
+    if(ls) ls.classList.remove('hidden');
     setTimeout(function(){var u=document.getElementById('login-user');if(u)u.focus();},100);
   }
 })();
