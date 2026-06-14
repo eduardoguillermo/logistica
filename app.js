@@ -18,7 +18,9 @@ function defData(){
       tipoCambio: 1,
       motivosSalida: ['Merma / descarte','Uso interno / prototipo','Garantia cliente','Reposicion a cliente','Prueba de calidad','Devolucion a proveedor','Rotura / dano'],
       origenesEntrada: ['Compra','Devolucion','Otro']
-    }
+    },
+    proyectos: [],
+    proyNid: 1
   };
 }
 
@@ -35,6 +37,8 @@ if(!DB.proveedores)  DB.proveedores  = [];
 if(!DB.config)       DB.config       = defData().config;
 if(!DB.config.motivosSalida)  DB.config.motivosSalida  = defData().config.motivosSalida;
 if(!DB.config.origenesEntrada) DB.config.origenesEntrada = defData().config.origenesEntrada;
+if(!DB.proyectos) DB.proyectos=[];
+if(!DB.proyNid) DB.proyNid=1;
 
 DB.ordenes.forEach(function(o,i){
   if(!o.numero) o.numero = 'OC-'+( o.fecha?o.fecha.slice(0,4):new Date().getFullYear())+'-'+String(i+1).padStart(4,'0');
@@ -68,7 +72,7 @@ function fbox(l,v,mono){ return '<div class="fbox"><div class="fl">'+l+'</div><d
 // =======================================================
 // NAV
 // =======================================================
-const PANELS = ['stock','catalogo','movimientos','ordenes','proveedores','reportes','config','backup'];
+const PANELS = ['stock','catalogo','movimientos','proyectos','ordenes','proveedores','reportes','config','backup'];
 
 function goTo(p){
   PANELS.forEach(function(x){
@@ -77,12 +81,13 @@ function goTo(p){
     var n = document.getElementById('nav-'+x);
     if(n) n.classList.toggle('on', x===p);
   });
-  var titles = {stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',ordenes:'Ordenes de compra',proveedores:'Proveedores',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
+  var titles = {stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
   document.getElementById('ptitle').textContent = titles[p]||p;
   var pa = document.getElementById('pacts'); pa.innerHTML = '';
   if(p==='stock')       renderStock();
   if(p==='catalogo')    renderCatalogo();
   if(p==='movimientos') renderMovimientos();
+  if(p==='proyectos')   renderProyectos();
   if(p==='ordenes')     renderOrdenes();
   if(p==='proveedores') renderProveedores();
   if(p==='reportes')    cerrarReporte();
@@ -682,6 +687,500 @@ function editarMovimiento(id){
       save();renderMovimientos();return true;
     });
 }
+
+
+// =======================================================
+// PROYECTOS
+// =======================================================
+var PROJ_ESTADOS = ['Planificado','En curso','Pausado','Finalizado','Cancelado'];
+
+function getNumProj(){
+  var yr = new Date().getFullYear();
+  var max = 0;
+  (DB.proyectos||[]).forEach(function(p){
+    if(p.numero&&p.numero.startsWith('PROJ-'+yr)){
+      var n=parseInt((p.numero||'').split('-')[2]||'0');
+      if(n>max) max=n;
+    }
+  });
+  return 'PROJ-'+yr+'-'+String(max+1).padStart(4,'0');
+}
+
+function proyEstadoPill(e){
+  var mp={Planificado:'p-a','En curso':'p-b',Pausado:'p-x',Finalizado:'p-g',Cancelado:'p-r'};
+  return '<span class="pill '+(mp[e]||'p-x')+'">'+e+'</span>';
+}
+
+function renderProyectos(){
+  var q=(document.getElementById('q-proj')?document.getElementById('q-proj').value||'':'').toLowerCase();
+  var fest=document.getElementById('proj-estado-filter')?document.getElementById('proj-estado-filter').value:'';
+  var list=(DB.proyectos||[]).filter(function(p){
+    return (!q||((p.numero||'')+(p.nombre||'')).toLowerCase().includes(q))
+      &&(!fest||p.estado===fest);
+  }).sort(function(a,b){return (b.numero||'').localeCompare(a.numero||'');});
+
+  var activos=(DB.proyectos||[]).filter(function(p){return p.estado==='En curso';}).length;
+  var planif=(DB.proyectos||[]).filter(function(p){return p.estado==='Planificado';}).length;
+  var fin=(DB.proyectos||[]).filter(function(p){return p.estado==='Finalizado';}).length;
+  var valorTotal=(DB.proyectos||[]).filter(function(p){return p.estado!=='Cancelado'&&p.estado!=='Finalizado';}).reduce(function(a,p){
+    return a+(p.materiales||[]).reduce(function(b,m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      return b+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+    },0);
+  },0);
+
+  document.getElementById('proj-stats').innerHTML=
+    '<div class="stat"><div class="stat-n amber">'+planif+'</div><div class="stat-l">Planificados</div></div>'+
+    '<div class="stat"><div class="stat-n blue">'+activos+'</div><div class="stat-l">En curso</div></div>'+
+    '<div class="stat"><div class="stat-n green">'+fin+'</div><div class="stat-l">Finalizados</div></div>'+
+    '<div class="stat"><div class="stat-n">$'+Math.round(valorTotal).toLocaleString('es-AR')+'</div><div class="stat-l">Valor comprometido</div></div>';
+
+  var tb=document.getElementById('tbody-proj');
+  if(!list.length){tb.innerHTML='<tr><td colspan="8" class="empty">Sin proyectos registrados.</td></tr>';return;}
+  tb.innerHTML=list.map(function(p){
+    var nMat=(p.materiales||[]).length;
+    var valor=(p.materiales||[]).reduce(function(a,m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+    },0);
+    var sobrantes=(p.materiales||[]).filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);}).length;
+    return '<tr>'+
+      '<td class="mono" style="font-size:11px">'+p.numero+'</td>'+
+      '<td><strong>'+p.nombre+'</strong>'+(p.descripcion?'<br><span style="font-size:10px;color:var(--text2)">'+p.descripcion.slice(0,50)+(p.descripcion.length>50?'...':'')+'</span>':'')+'</td>'+
+      '<td>'+proyEstadoPill(p.estado)+'</td>'+
+      '<td style="font-size:11px">'+(p.fechaInicio||'--')+'</td>'+
+      '<td style="font-size:11px">'+(p.fechaEstFin||'--')+'</td>'+
+      '<td style="text-align:center">'+nMat+(sobrantes>0&&p.estado==='Finalizado'?'<br><span style="font-size:10px;color:var(--amber)">'+sobrantes+' c/sobrante</span>':'')+'</td>'+
+      '<td style="text-align:right;font-size:11px">'+(valor>0?'$'+Math.round(valor).toLocaleString('es-AR'):'--')+'</td>'+
+      '<td style="display:flex;gap:3px">'+
+        '<button class="btn btn-sm btn-p" onclick="abrirProyecto('+p.id+')">Ver</button>'+
+        '<button class="btn btn-sm" style="color:var(--red)" onclick="borrarProyecto('+p.id+')">X</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+}
+
+function modalNuevoProyecto(){
+  var num=getNumProj();
+  openModal('Nuevo proyecto',
+    '<div class="fg2">'+
+      '<div class="fg"><label>N° Proyecto</label><div style="padding:7px 9px;font-family:monospace;font-weight:700;color:var(--primary)">'+num+'</div></div>'+
+      '<div class="fg"><label>Estado inicial</label><div style="padding:7px 9px;font-size:12px;color:var(--text2)">Planificado</div></div>'+
+      '<div class="fg full"><label>Nombre *</label><input id="np-nombre" placeholder="Nombre del proyecto"></div>'+
+      '<div class="fg full"><label>Descripcion</label><textarea id="np-desc" rows="3" placeholder="Descripcion del proyecto..."></textarea></div>'+
+      '<div class="fg"><label>Fecha inicio</label><input id="np-finicio" type="date" value="'+today()+'"></div>'+
+      '<div class="fg"><label>Fecha estimada fin</label><input id="np-festfin" type="date"></div>'+
+    '</div>',
+    function(){
+      var nombre=document.getElementById('np-nombre').value.trim();
+      if(!nombre){alert('El nombre es obligatorio.');return false;}
+      var proj={
+        id:DB.proyNid++,
+        numero:num,
+        nombre:nombre,
+        descripcion:document.getElementById('np-desc').value,
+        estado:'Planificado',
+        fechaInicio:document.getElementById('np-finicio').value,
+        fechaEstFin:document.getElementById('np-festfin').value,
+        fechaFinReal:'',
+        materiales:[],
+        historial:[{fecha:today(),accion:'Proyecto creado',estado:'Planificado'}]
+      };
+      if(!DB.proyectos) DB.proyectos=[];
+      DB.proyectos.unshift(proj);
+      save();
+      renderProyectos();
+      // Abrir directamente para agregar materiales
+      setTimeout(function(){abrirProyecto(proj.id);},200);
+      return true;
+    });
+}
+
+function abrirProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+
+  var esPlanif=p.estado==='Planificado';
+  var esEnCurso=p.estado==='En curso';
+  var esFin=p.estado==='Finalizado'||p.estado==='Cancelado';
+
+  // Valor total
+  var valor=(p.materiales||[]).reduce(function(a,m){
+    var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+    return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+  },0);
+
+  // Header
+  var body=
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">'+
+      '<span class="mono" style="font-weight:700;color:var(--primary)">'+p.numero+'</span>'+
+      proyEstadoPill(p.estado)+
+      '<span style="font-size:11px;color:var(--text2)">Inicio: '+(p.fechaInicio||'--')+'</span>'+
+      '<span style="font-size:11px;color:var(--text2)">Est. fin: '+(p.fechaEstFin||'--')+'</span>'+
+      (p.fechaFinReal?'<span style="font-size:11px;color:var(--green)">Fin real: '+p.fechaFinReal+'</span>':'')+
+    '</div>'+
+    // Descripcion
+    '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text2)">'+
+      '<strong style="color:var(--text)">'+p.nombre+'</strong>'+(p.descripcion?'<br>'+p.descripcion:'')+'</div>'+
+    // Acciones de estado
+    (!esFin?
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+
+        (esPlanif?
+          '<button class="btn btn-p" onclick="confirmarPlanificacion('+id+')">✅ Confirmar planificacion y reservar stock</button>':'')+
+        (esEnCurso?
+          '<button class="btn" onclick="agregarMaterialProyecto('+id+')">➕ Agregar material</button>'+
+          '<button class="btn" onclick="iniciarCierreProyecto('+id+')">🏁 Iniciar cierre</button>'+
+          '<button class="btn" style="color:var(--amber)" onclick="cambiarEstadoProyecto('+id+',\'Pausado\')">⏸ Pausar</button>':'')+
+        (p.estado==='Pausado'?
+          '<button class="btn btn-p" onclick="cambiarEstadoProyecto('+id+',\'En curso\')">▶ Reanudar</button>':'')+
+        (esPlanif||esEnCurso||p.estado==='Pausado'?
+          '<button class="btn" style="color:var(--red)" onclick="cancelarProyecto('+id+')">❌ Cancelar</button>':'')+
+      '</div>':'');
+
+  // Materiales
+  body+='<div class="sectitle" style="margin-bottom:8px">Materiales del proyecto</div>';
+  if(!(p.materiales||[]).length){
+    body+='<div class="empty" style="margin-bottom:12px">Sin materiales. '+(esPlanif?'Agregá materiales antes de confirmar la planificacion.':'')+'</div>';
+  } else {
+    var tc=(DB.config&&DB.config.tipoCambio)||1;
+    body+='<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'+
+      '<thead><tr style="background:var(--surface2)">'+
+        '<th style="padding:5px 10px;font-size:10px">Codigo</th>'+
+        '<th style="padding:5px 10px;font-size:10px">Componente</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Cant.</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Devuelto</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:right">Valor $</th>'+
+        (esFin?'':'<th style="padding:5px 10px;font-size:10px"></th>')+
+      '</tr></thead><tbody>'+
+      (p.materiales||[]).map(function(m,mi){
+        var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{codigo:'?',desc:'?'};
+        var val=(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+        var sobrante=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
+        return '<tr style="border-bottom:1px solid var(--border)">'+
+          '<td style="padding:5px 10px;font-size:11px;font-family:monospace">'+comp.codigo+'</td>'+
+          '<td style="padding:5px 10px;font-size:11px">'+comp.desc+'</td>'+
+          '<td style="padding:5px 10px;text-align:center;font-weight:700">'+m.cant+' '+(comp.unidad||'')+'</td>'+
+          '<td style="padding:5px 10px;text-align:center;color:var(--text2)">'+(m.devuelto||0)+(sobrante>0&&!esFin?'<span style="font-size:10px;color:var(--amber)"> ('+sobrante+' en proyecto)</span>':'')+'</td>'+
+          '<td style="padding:5px 10px;text-align:right;font-size:11px">$'+Math.round(val).toLocaleString('es-AR')+'</td>'+
+          (!esFin?'<td style="padding:5px 10px"><button class="btn btn-sm" style="color:var(--red)" onclick="quitarMaterialProyecto('+id+','+mi+')">X</button></td>':'')+
+        '</tr>';
+      }).join('')+
+      '</tbody></table>'+
+      '<div style="text-align:right;font-size:12px;color:var(--text2);margin-bottom:12px">Valor total: <strong style="color:var(--text)">$'+Math.round(valor).toLocaleString('es-AR')+'</strong></div>';
+  }
+
+  // Agregar material en planificacion
+  if(esPlanif){
+    body+='<button class="btn" style="margin-bottom:14px" onclick="agregarMaterialProyecto('+id+')">➕ Agregar material al plan</button>';
+  }
+
+  // Historial
+  if((p.historial||[]).length){
+    body+='<hr class="div"><div class="sectitle" style="margin-bottom:8px">Historial</div>'+
+      '<div style="display:flex;flex-direction:column;gap:4px">'+
+      (p.historial||[]).slice().reverse().map(function(h){
+        return '<div style="display:flex;gap:10px;font-size:11px;color:var(--text2)">'+
+          '<span style="font-family:monospace;flex-shrink:0">'+h.fecha+'</span>'+
+          '<span>'+h.accion+'</span>'+
+        '</div>';
+      }).join('')+'</div>';
+  }
+
+  openModal('Proyecto '+p.numero, body, null, true);
+}
+
+function agregarMaterialProyecto(projId){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p) return;
+  var compOpts=[...DB.componentes].sort(function(a,b){return (a.desc||'').localeCompare(b.desc||'','es');}).map(function(c){
+    var stock=stockActual(c.id);
+    return '<option value="'+c.id+'">[Stock: '+stock+'] '+c.codigo+' -- '+c.desc+'</option>';
+  }).join('');
+  openModal('Agregar material -- '+p.numero,
+    '<div class="fg2">'+
+      '<div class="fg full"><label>Componente *</label>'+
+        '<select id="am-comp" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
+          '<option value="">-- seleccionar --</option>'+compOpts+'</select></div>'+
+      '<div class="fg"><label>Cantidad *</label><input id="am-cant" type="number" min="1" value="1"></div>'+
+    '</div>',
+    function(){
+      var compId=parseInt(document.getElementById('am-comp').value)||0;
+      var cant=parseFloat(document.getElementById('am-cant').value)||0;
+      if(!compId||!cant){alert('Selecciona un componente e ingresa la cantidad.');return false;}
+      var stockDisp=stockActual(compId);
+      if(cant>stockDisp){alert('Stock insuficiente. Disponible: '+stockDisp);return false;}
+      var comp=DB.componentes.find(function(c){return c.id===compId;})||{};
+      // Agregar a materiales del proyecto
+      var existing=p.materiales.find(function(m){return m.compId===compId;});
+      if(existing){
+        existing.cant=parseFloat(existing.cant)+cant;
+      } else {
+        p.materiales.push({compId:compId,cant:cant,devuelto:0});
+      }
+      // Salida de stock
+      DB.movimientos.push({
+        id:DB.nid++,cid:compId,tipo:'Salida manual',cant:cant,
+        fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',
+        estadoMat:'N'
+      });
+      p.historial.push({fecha:today(),accion:'Material agregado: '+comp.desc+' x'+cant});
+      save();cerrarModal();
+      setTimeout(function(){abrirProyecto(projId);},100);
+      return true;
+    });
+}
+
+function quitarMaterialProyecto(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.materiales[idx]) return;
+  var m=p.materiales[idx];
+  var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?'};
+  if(!confirm('Quitar '+comp.desc+' x'+m.cant+' del proyecto y devolver al stock?')) return;
+  // Devolver al stock
+  DB.movimientos.push({
+    id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:m.cant,
+    fecha:today(),ref:p.numero,nota:'Quita de proyecto',origen:'Devolucion proyecto'
+  });
+  p.historial.push({fecha:today(),accion:'Material quitado: '+comp.desc+' x'+m.cant+' (devuelto al stock)'});
+  p.materiales.splice(idx,1);
+  save();cerrarModal();
+  renderProyectos();
+  setTimeout(function(){abrirProyecto(projId);},100);
+}
+
+function confirmarPlanificacion(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  if(!(p.materiales||[]).length){alert('Agrega materiales antes de confirmar.');return;}
+  // Verificar stock
+  var faltantes=[];
+  p.materiales.forEach(function(m){
+    var disp=stockActual(m.compId);
+    if((parseFloat(m.cant)||0)>disp){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?'};
+      faltantes.push(comp.desc+': necesita '+m.cant+', hay '+disp);
+    }
+  });
+  if(faltantes.length){
+    if(!confirm('Stock insuficiente para:\n\n'+faltantes.join('\n')+'\n\n¿Continuar de todas formas?')) return;
+  }
+  if(!confirm('Confirmar planificacion de '+p.numero+'?\nSe descontaran los materiales del stock y el proyecto pasara a "En curso".')) return;
+  // Salida de stock para todos los materiales
+  p.materiales.forEach(function(m){
+    var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+    DB.movimientos.push({
+      id:DB.nid++,cid:m.compId,tipo:'Salida manual',cant:m.cant,
+      fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',estadoMat:'N'
+    });
+  });
+  p.estado='En curso';
+  p.historial.push({fecha:today(),accion:'Planificacion confirmada -- materiales descontados del stock',estado:'En curso'});
+  save();cerrarModal();
+  renderProyectos();
+  setTimeout(function(){abrirProyecto(id);},100);
+}
+
+function iniciarCierreProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  var sobrantes=p.materiales.filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
+  if(!sobrantes.length){
+    if(confirm('No hay sobrantes. Finalizar el proyecto?')){
+      p.estado='Finalizado';p.fechaFinReal=today();
+      p.historial.push({fecha:today(),accion:'Proyecto finalizado',estado:'Finalizado'});
+      save();cerrarModal();renderProyectos();
+    }
+    return;
+  }
+  // Modal devolución de sobrantes
+  var compOpts=sobrantes.map(function(m){
+    var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
+    var enProyecto=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
+    return '<tr style="border-bottom:1px solid var(--border)">'+
+      '<td style="padding:6px 10px;font-size:12px">'+comp.desc+'</td>'+
+      '<td style="padding:6px 10px;text-align:center">'+enProyecto+' '+(comp.unidad||'')+'</td>'+
+      '<td style="padding:6px 10px"><input type="number" class="dev-cant" data-compid="'+m.compId+'" min="0" max="'+enProyecto+'" value="'+enProyecto+'" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center;background:var(--surface2);color:var(--text)"></td>'+
+    '</tr>';
+  }).join('');
+  openModal('Cierre de proyecto -- '+p.numero,
+    '<p style="font-size:12px;color:var(--text2);margin-bottom:12px">Indica cuanto devolver al stock de cada material sobrante. Pone 0 para no devolver.</p>'+
+    '<table style="width:100%;border-collapse:collapse">'+
+    '<thead><tr style="background:var(--surface2)"><th style="padding:6px 10px;font-size:10px">Componente</th><th style="padding:6px 10px;font-size:10px;text-align:center">En proyecto</th><th style="padding:6px 10px;font-size:10px;text-align:center">A devolver</th></tr></thead>'+
+    '<tbody>'+compOpts+'</tbody></table>',
+    function(){
+      var inputs=document.querySelectorAll('.dev-cant');
+      inputs.forEach(function(inp){
+        var compId=parseInt(inp.dataset.compid);
+        var cantDev=parseFloat(inp.value)||0;
+        if(cantDev<=0) return;
+        var mat=p.materiales.find(function(m){return m.compId===compId;});
+        if(!mat) return;
+        mat.devuelto=(parseFloat(mat.devuelto)||0)+cantDev;
+        DB.movimientos.push({
+          id:DB.nid++,cid:compId,tipo:'Entrada',cant:cantDev,
+          fecha:today(),ref:p.numero,nota:'Devolucion proyecto '+p.numero,origen:'Devolucion proyecto'
+        });
+        var comp=DB.componentes.find(function(c){return c.id===compId;})||{desc:'?'};
+        p.historial.push({fecha:today(),accion:'Devuelto al stock: '+comp.desc+' x'+cantDev});
+      });
+      p.estado='Finalizado';p.fechaFinReal=today();
+      p.historial.push({fecha:today(),accion:'Proyecto finalizado',estado:'Finalizado'});
+      save();renderProyectos();renderStock();return true;
+    });
+}
+
+function cambiarEstadoProyecto(id, nuevoEstado){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  if(!confirm('Cambiar estado a "'+nuevoEstado+'"?')) return;
+  p.estado=nuevoEstado;
+  p.historial.push({fecha:today(),accion:'Estado cambiado a '+nuevoEstado,estado:nuevoEstado});
+  save();cerrarModal();renderProyectos();
+  setTimeout(function(){abrirProyecto(id);},100);
+}
+
+function cancelarProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  var sobrantes=p.materiales.filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
+  var msg='Cancelar el proyecto '+p.numero+'?';
+  if(sobrantes.length) msg+='\n\nSe devolvera automaticamente todo el material restante al stock.';
+  if(!confirm(msg)) return;
+  // Devolver todo al stock
+  sobrantes.forEach(function(m){
+    var cantDev=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
+    m.devuelto=parseFloat(m.cant)||0;
+    DB.movimientos.push({
+      id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:cantDev,
+      fecha:today(),ref:p.numero,nota:'Cancelacion proyecto '+p.numero,origen:'Devolucion proyecto'
+    });
+  });
+  p.estado='Cancelado';
+  p.historial.push({fecha:today(),accion:'Proyecto cancelado -- materiales devueltos al stock',estado:'Cancelado'});
+  save();cerrarModal();renderProyectos();renderStock();
+}
+
+function borrarProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  if(!confirm('Eliminar el proyecto '+p.numero+'? Esta accion no se puede deshacer.')) return;
+  DB.proyectos=DB.proyectos.filter(function(x){return x.id!==id;});
+  save();renderProyectos();
+}
+
+// REPORTE: Avance de proyectos ================================
+function reporteProyectos(){
+  var hoy=today();
+  var lista=(DB.proyectos||[]).slice().sort(function(a,b){return (b.numero||'').localeCompare(a.numero||'');});
+  if(!lista.length){reporteContainer('Avance de proyectos','<div class="empty">Sin proyectos registrados.</div>');return;}
+
+  var activos=lista.filter(function(p){return p.estado==='En curso';}).length;
+  var planif=lista.filter(function(p){return p.estado==='Planificado';}).length;
+  var fin=lista.filter(function(p){return p.estado==='Finalizado';}).length;
+  var totalValor=lista.filter(function(p){return p.estado!=='Cancelado';}).reduce(function(a,p){
+    return a+(p.materiales||[]).reduce(function(b,m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      return b+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+    },0);
+  },0);
+
+  var h='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'+
+    '<div class="stat"><div class="stat-n amber">'+planif+'</div><div class="stat-l">Planificados</div></div>'+
+    '<div class="stat"><div class="stat-n blue">'+activos+'</div><div class="stat-l">En curso</div></div>'+
+    '<div class="stat"><div class="stat-n green">'+fin+'</div><div class="stat-l">Finalizados</div></div>'+
+    '<div class="stat"><div class="stat-n">$'+Math.round(totalValor).toLocaleString('es-AR')+'</div><div class="stat-l">Valor total</div></div>'+
+  '</div>';
+
+  lista.forEach(function(p){
+    var valor=(p.materiales||[]).reduce(function(a,m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+    },0);
+    var valorDev=(p.materiales||[]).reduce(function(a,m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      return a+(parseFloat(m.devuelto)||0)*(parseFloat(comp.costo)||0);
+    },0);
+    var sobrantes=(p.materiales||[]).filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
+
+    // Barra de tiempo
+    var pctTiempo=0;
+    if(p.fechaInicio&&p.fechaEstFin){
+      var total=new Date(p.fechaEstFin)-new Date(p.fechaInicio);
+      var trans=new Date(hoy)-new Date(p.fechaInicio);
+      pctTiempo=total>0?Math.min(100,Math.max(0,Math.round(trans/total*100))):0;
+    }
+    var diasRestantes='';
+    if(p.fechaEstFin&&p.estado!=='Finalizado'&&p.estado!=='Cancelado'){
+      var diff=Math.round((new Date(p.fechaEstFin)-new Date())/86400000);
+      diasRestantes=diff<0?'<span style="color:var(--red);font-size:11px">'+Math.abs(diff)+' dias de atraso</span>':
+                           '<span style="color:var(--text2);font-size:11px">'+diff+' dias restantes</span>';
+    }
+
+    h+='<div class="card" style="margin-bottom:10px">'+
+      '<div class="ch">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<span class="mono" style="font-size:11px;color:var(--primary)">'+p.numero+'</span>'+
+          '<strong>'+p.nombre+'</strong>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;align-items:center">'+
+          proyEstadoPill(p.estado)+
+          (diasRestantes?diasRestantes:'')+
+        '</div>'+
+      '</div>'+
+      '<div class="card-body">'+
+        (p.descripcion?'<p style="font-size:12px;color:var(--text2);margin-bottom:10px">'+p.descripcion+'</p>':'')+
+        // Barra de tiempo
+        (p.fechaInicio&&p.fechaEstFin?
+          '<div style="margin-bottom:10px">'+
+            '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:4px">'+
+              '<span>'+p.fechaInicio+'</span>'+
+              '<span>'+pctTiempo+'% del tiempo</span>'+
+              '<span>'+(p.fechaFinReal||p.fechaEstFin)+'</span>'+
+            '</div>'+
+            '<div style="background:var(--surface2);border-radius:3px;height:6px;overflow:hidden">'+
+              '<div style="height:100%;background:'+(pctTiempo>=100?'var(--red)':'var(--blue)')+';width:'+pctTiempo+'%;transition:width .3s"></div>'+
+            '</div>'+
+          '</div>':'');
+
+    // Materiales
+    if((p.materiales||[]).length){
+      h+='<table style="width:100%;border-collapse:collapse;margin-bottom:8px">'+
+        '<thead><tr style="background:var(--surface2)">'+
+          '<th style="padding:4px 8px;font-size:10px">Componente</th>'+
+          '<th style="padding:4px 8px;font-size:10px;text-align:center">Cant.</th>'+
+          '<th style="padding:4px 8px;font-size:10px;text-align:center">Devuelto</th>'+
+          '<th style="padding:4px 8px;font-size:10px;text-align:center">En uso</th>'+
+          '<th style="padding:4px 8px;font-size:10px;text-align:right">Valor $</th>'+
+        '</tr></thead><tbody>'+
+        (p.materiales||[]).map(function(m){
+          var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
+          var enUso=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
+          var val=(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+          return '<tr style="border-bottom:1px solid var(--border)">'+
+            '<td style="padding:4px 8px;font-size:11px">'+comp.desc+'</td>'+
+            '<td style="padding:4px 8px;text-align:center;font-size:11px">'+m.cant+' '+(comp.unidad||'')+'</td>'+
+            '<td style="padding:4px 8px;text-align:center;font-size:11px;color:var(--text2)">'+(m.devuelto||0)+'</td>'+
+            '<td style="padding:4px 8px;text-align:center;font-size:11px;font-weight:700;color:'+(enUso>0?'var(--blue)':'var(--text2)')+'">'+enUso+'</td>'+
+            '<td style="padding:4px 8px;text-align:right;font-size:11px">$'+Math.round(val).toLocaleString('es-AR')+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>';
+      h+='<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:8px">'+
+        '<span>Valor comprometido: <strong style="color:var(--text)">$'+Math.round(valor).toLocaleString('es-AR')+'</strong></span>'+
+        (valorDev>0?'<span>Devuelto: <strong style="color:var(--green)">$'+Math.round(valorDev).toLocaleString('es-AR')+'</strong></span>':'')+
+        (sobrantes.length&&p.estado!=='Finalizado'?'<span style="color:var(--amber)">'+sobrantes.length+' item(s) con sobrante</span>':'')+
+      '</div>';
+    } else {
+      h+='<p style="font-size:12px;color:var(--text2)">Sin materiales registrados.</p>';
+    }
+
+    h+='</div></div>';
+  });
+
+  reporteContainer('Avance de proyectos', h);
+}
+
+
 
 // =======================================================
 // ORDENES
