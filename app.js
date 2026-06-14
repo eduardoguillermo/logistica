@@ -2514,6 +2514,7 @@ function renderDashboard(){
 
   var proyActivos = (DB.proyectos||[]).filter(function(p){return p.estado==='En curso';});
   var proyPlanif  = (DB.proyectos||[]).filter(function(p){return p.estado==='Planificado';});
+  var proyPausados = (DB.proyectos||[]).filter(function(p){return p.estado==='Pausado';});
   var stockCritico = DB.componentes.filter(function(c){
     return stockActual(c.id)<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;
   });
@@ -2547,6 +2548,7 @@ function renderDashboard(){
   h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:20px">'+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'proyectos\')"><div class="stat-n blue">'+proyActivos.length+'</div><div class="stat-l">En curso</div></div>'+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'proyectos\')"><div class="stat-n amber">'+proyPlanif.length+'</div><div class="stat-l">Planificados</div></div>'+
+    (proyPausados.length?'<div class="stat" style="cursor:pointer;border-color:#555" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#aaa">'+proyPausados.length+'</div><div class="stat-l">Pausados</div></div>':'')+
     (tareasVencidas.length?'<div class="stat" style="cursor:pointer;border-color:#7f0000" onclick="goTo(\'proyectos\')"><div class="stat-n red">'+tareasVencidas.length+'</div><div class="stat-l">Tareas vencidas</div></div>':'')+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'stock\')"><div class="stat-n '+(stockCritico.length>0?'red':'green')+'">'+stockCritico.length+'</div><div class="stat-l">Stock critico</div></div>'+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'ordenes\')"><div class="stat-n">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>'+
