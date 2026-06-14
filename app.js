@@ -119,16 +119,17 @@ var _stockSort = {col:'desc', dir:1};
 
 function cajonBadge(ubicacion, nroCajon){
   if(!ubicacion && !nroCajon) return '<span style="color:var(--text3);font-size:11px">--</span>';
-  var paleta = ['#1565C0','#2E7D32','#6A1B9A','#E65100','#00695C','#AD1457','#4527A0','#558B2F'];
-  var hash = 0;
-  var s = (ubicacion||'').toUpperCase();
-  for(var i=0;i<s.length;i++) hash = (hash*31 + s.charCodeAt(i)) & 0xff;
-  var color = paleta[hash % paleta.length];
-  var cajonHtml = nroCajon
-    ? '<span style="background:rgba(255,255,255,0.18);padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;margin-left:4px">'+nroCajon+'</span>'
-    : '';
-  return '<span style="background:'+color+';color:#fff;padding:3px 9px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;display:inline-flex;align-items:center">'+
-    (ubicacion||'')+cajonHtml+'</span>';
+  var paleta=['#1565C0','#2E7D32','#6A1B9A','#E65100','#00695C','#AD1457','#4527A0','#558B2F'];
+  var hash=0; var s=(ubicacion||'').toUpperCase();
+  for(var i=0;i<s.length;i++) hash=(hash*31+s.charCodeAt(i))&0xff;
+  var color=paleta[hash%paleta.length];
+  if(nroCajon){
+    return '<span style="display:inline-flex;align-items:center;gap:0;border-radius:5px;overflow:hidden;font-weight:700;white-space:nowrap">'+
+      '<span style="background:'+color+'22;color:'+color+';padding:2px 7px;font-size:10px;border:1px solid '+color+'44;border-right:none;border-radius:5px 0 0 5px">'+(ubicacion||'')+'</span>'+
+      '<span style="background:'+color+';color:#fff;padding:2px 9px;font-size:14px;border-radius:0 5px 5px 0">'+nroCajon+'</span>'+
+    '</span>';
+  }
+  return '<span style="background:'+color+'22;color:'+color+';padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid '+color+'44">'+(ubicacion||'')+'</span>';
 }
 
 function toggleStockCritico(){
@@ -156,16 +157,13 @@ function sortStock(col){
 function renderStock(){
   var tc = parseFloat((DB.config&&DB.config.tipoCambio)||1);
   fillCatFilter('stock-cat-filter');
-  var fcat   = document.getElementById('stock-cat-filter')   ? document.getElementById('stock-cat-filter').value   : '';
-  var farea  = document.getElementById('stock-area-filter')  ? document.getElementById('stock-area-filter').value  : '';
-  var fcajon = document.getElementById('stock-cajon-filter') ? document.getElementById('stock-cajon-filter').value : '';
-  var qs     = (document.getElementById('q-stock') ? document.getElementById('q-stock').value||'' : '').toLowerCase();
-  fillCajonerFilter('stock-cajon-filter');
+  var fcat  = document.getElementById('stock-cat-filter')  ? document.getElementById('stock-cat-filter').value  : '';
+  var farea = document.getElementById('stock-area-filter') ? document.getElementById('stock-area-filter').value : '';
+  var qs    = (document.getElementById('q-stock') ? document.getElementById('q-stock').value||'' : '').toLowerCase();
 
   var list = DB.componentes.filter(function(c){
     return (!fcat||c.categoria===fcat) &&
            (!farea||c.area===farea||c.area==='Ambas') &&
-           (!fcajon||(c.ubicacion||'').trim()===fcajon) &&
            (!qs||(c.codigo+c.desc+(c.ubicacion||'')+(c.proveedor||'')).toLowerCase().includes(qs));
   });
   if(stockSoloCritico) list = list.filter(function(c){return stockActual(c.id)<=(parseFloat(c.min)||0);});
@@ -210,13 +208,14 @@ function renderStock(){
     var cant = stockActual(c.id);
     var min  = parseFloat(c.min)||0;
     var eMat = c.estadoMat==='R'?'<span class="pill p-a">R</span>':'<span class="pill p-g">N</span>';
+    var ubic = cajonBadge(c.ubicacion, c.nroCajon);
     return '<tr>'+
       '<td class="mono" style="font-size:11px">'+c.codigo+'</td>'+
       '<td><strong>'+c.desc+'</strong></td>'+
       '<td>'+c.categoria+'</td>'+
       '<td style="font-weight:700;font-size:13px;color:'+(cant<=0?'var(--red)':cant<=min?'var(--amber)':'var(--green)')+'">'+cant+' '+(c.unidad||'')+'</td>'+
       '<td>'+(min||0)+' '+(c.unidad||'')+'</td>'+
-      '<td>'+cajonBadge(c.ubicacion,c.nroCajon)+'</td>'+
+      '<td>'+ubic+'</td>'+
       '<td>'+(c.proveedor||'--')+'</td>'+
       '<td>'+(c.area||'--')+'</td>'+
       '<td style="text-align:center">'+eMat+'</td>'+
@@ -237,7 +236,7 @@ function pdfStock(){
     var val=qty*(parseFloat(c.costo)||0);
     totalVal+=val;
     var critico=qty<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;
-    var ubic = c.ubicacion?(c.nroCajon?c.ubicacion+' / '+c.nroCajon:c.ubicacion):(c.nroCajon||'--');
+    var ubic = cajonBadge(c.ubicacion, c.nroCajon);
     return '<tr style="'+(critico?'background:#FFF3E0':'')+'">'+
       '<td>'+c.codigo+'</td><td>'+c.desc+'</td><td>'+(c.categoria||'--')+'</td>'+
       '<td>'+(c.area||'--')+'</td><td>'+ubic+'</td>'+
@@ -269,14 +268,6 @@ function fillProvFilter(){
   sel.innerHTML = '<option value="">Todos los proveedores</option>'+provs.map(function(p){return '<option value="'+p+'"'+(p===cur?' selected':'')+'>'+p+'</option>';}).join('');
 }
 
-function fillCajonerFilter(selId){
-  var sel = document.getElementById(selId);
-  if(!sel) return;
-  var cur = sel.value;
-  var cajs = [...new Set(DB.componentes.map(function(c){return (c.ubicacion||'').trim();}).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">Todas las cajoneras</option>'+cajs.map(function(c){return '<option'+(c===cur?' selected':'')+'>'+c+'</option>';}).join('');
-}
-
 function sortCatalogo(col){
   if(_catSort.col===col) _catSort.dir*=-1;
   else { _catSort.col=col; _catSort.dir=1; }
@@ -286,16 +277,13 @@ function sortCatalogo(col){
 function renderCatalogo(){
   fillCatFilter('cat-filter');
   fillProvFilter();
-  var q      = (document.getElementById('q-cat').value||'').toLowerCase();
-  var fc     = document.getElementById('cat-filter').value;
-  var fprov  = document.getElementById('cat-prov-filter')?document.getElementById('cat-prov-filter').value:'';
-  var fcajon = document.getElementById('cat-cajon-filter')?document.getElementById('cat-cajon-filter').value:'';
-  fillCajonerFilter('cat-cajon-filter');
+  var q     = (document.getElementById('q-cat').value||'').toLowerCase();
+  var fc    = document.getElementById('cat-filter').value;
+  var fprov = document.getElementById('cat-prov-filter')?document.getElementById('cat-prov-filter').value:'';
   var list  = DB.componentes.filter(function(c){
     return (!q||(c.codigo+c.desc+(c.proveedor||'')+(c.ubicacion||'')+(c.categoria||'')).toLowerCase().includes(q))
       &&(!fc||c.categoria===fc)
-      &&(!fprov||(c.proveedor||'').trim()===fprov)
-      &&(!fcajon||(c.ubicacion||'').trim()===fcajon);
+      &&(!fprov||(c.proveedor||'').trim()===fprov);
   });
   list.sort(function(a,b){
     var va='',vb='';
@@ -325,6 +313,7 @@ function renderCatalogo(){
     var min = parseFloat(c.min)||0;
     var sc  = qty<=0?'var(--red)':qty<=min?'#E65100':'var(--green)';
     var si  = qty<=0?'red':qty<=min?'amber':'green';
+    var ubic = cajonBadge(c.ubicacion, c.nroCajon);
     return '<tr>'+
       '<td class="mono" style="font-size:11px">'+c.codigo+'</td>'+
       '<td>'+c.desc+'</td>'+
@@ -333,7 +322,7 @@ function renderCatalogo(){
       '<td>'+(c.min||0)+'</td>'+
       '<td style="font-weight:700;color:'+sc+'">'+qty+'</td>'+
       '<td><span class="pill '+(c.area==='Mantenimiento'?'p-b':c.area==='Instalacion'?'p-a':'p-g')+'">'+(c.area||'Fabrica')+'</span></td>'+
-      '<td>'+cajonBadge(c.ubicacion,c.nroCajon)+'</td>'+
+      '<td>'+ubic+'</td>'+
       '<td>'+(c.proveedor||'--')+'</td>'+
       '<td style="text-align:center">'+(c.estadoMat==='R'?'<span class="pill p-a">R</span>':'<span class="pill p-g">N</span>')+'</td>'+
       '<td style="display:flex;gap:3px">'+
@@ -352,7 +341,7 @@ function pdfCatalogo(){
     var qty=stockActual(c.id);
     var min=parseFloat(c.min)||0;
     var critico=qty<=min&&min>0;
-    var ubic=c.ubicacion?(c.nroCajon?c.ubicacion+' / '+c.nroCajon:c.ubicacion):(c.nroCajon||'--');
+    var ubic=cajonBadge(c.ubicacion,c.nroCajon);
     return '<tr style="'+(critico?'background:#FFF3E0':'')+'">'+
       '<td>'+c.codigo+'</td><td>'+c.desc+'</td><td>'+(c.categoria||'--')+'</td>'+
       '<td>'+(c.area||'--')+'</td><td>'+ubic+'</td>'+
@@ -955,7 +944,6 @@ function reporteUbicaciones(){
         comps.map(function(c){
           var qty=stockActual(c.id);var min=parseFloat(c.min)||0;
           var sc=qty<=0?'var(--red)':qty<=min?'var(--amber)':'var(--green)';
-          var cajon=c.nroCajon?'Cajon '+c.nroCajon:'';
           return '<tr style="border-bottom:1px solid var(--border)">'+
             '<td style="padding:4px 0;font-size:10px;font-family:monospace;color:var(--text2)">'+c.codigo+'</td>'+
             '<td style="padding:4px 6px;font-size:11px">'+c.desc+(cajon?' <span style="font-size:10px;color:var(--text3)">('+cajon+')</span>':'')+'</td>'+
