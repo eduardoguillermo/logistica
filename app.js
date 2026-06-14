@@ -917,13 +917,18 @@ function agregarMaterialProyecto(projId){
       } else {
         p.materiales.push({compId:compId,cant:cant,devuelto:0});
       }
-      // Salida de stock
-      DB.movimientos.push({
-        id:DB.nid++,cid:compId,tipo:'Salida manual',cant:cant,
-        fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',
-        estadoMat:'N'
-      });
-      p.historial.push({fecha:today(),accion:'Material agregado: '+comp.desc+' x'+cant});
+      // Salida de stock SOLO si el proyecto ya esta En curso
+      // En Planificado la salida ocurre al confirmar la planificacion
+      if(p.estado==='En curso'){
+        DB.movimientos.push({
+          id:DB.nid++,cid:compId,tipo:'Salida manual',cant:cant,
+          fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',
+          estadoMat:'N'
+        });
+        p.historial.push({fecha:today(),accion:'Material adicional agregado y descontado del stock: '+comp.desc+' x'+cant});
+      } else {
+        p.historial.push({fecha:today(),accion:'Material agregado al plan: '+comp.desc+' x'+cant+' (se descontara al confirmar)'});
+      }
       save();cerrarModal();
       setTimeout(function(){abrirProyecto(projId);},100);
       return true;
