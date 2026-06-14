@@ -120,16 +120,19 @@ var _stockSort = {col:'desc', dir:1};
 function cajonBadge(ubicacion, nroCajon){
   if(!ubicacion && !nroCajon) return '<span style="color:var(--text3);font-size:11px">--</span>';
   var paleta=['#1565C0','#2E7D32','#6A1B9A','#E65100','#00695C','#AD1457','#4527A0','#558B2F'];
-  var hash=0; var s=(ubicacion||'').toUpperCase();
+  var hash=0; var s=(ubicacion||nroCajon||'').toUpperCase();
   for(var i=0;i<s.length;i++) hash=(hash*31+s.charCodeAt(i))&0xff;
   var color=paleta[hash%paleta.length];
-  if(nroCajon){
+  if(ubicacion && nroCajon){
     return '<span style="display:inline-flex;align-items:center;gap:0;border-radius:5px;overflow:hidden;font-weight:700;white-space:nowrap">'+
-      '<span style="background:'+color+'22;color:'+color+';padding:2px 7px;font-size:10px;border:1px solid '+color+'44;border-right:none;border-radius:5px 0 0 5px">'+(ubicacion||'')+'</span>'+
+      '<span style="background:'+color+'22;color:'+color+';padding:2px 7px;font-size:10px;border:1px solid '+color+'44;border-right:none;border-radius:5px 0 0 5px">'+ubicacion+'</span>'+
       '<span style="background:'+color+';color:#fff;padding:2px 9px;font-size:14px;border-radius:0 5px 5px 0">'+nroCajon+'</span>'+
     '</span>';
   }
-  return '<span style="background:'+color+'22;color:'+color+';padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid '+color+'44">'+(ubicacion||'')+'</span>';
+  if(nroCajon){
+    return '<span style="background:'+color+';color:#fff;padding:2px 10px;border-radius:5px;font-size:14px;font-weight:700">'+nroCajon+'</span>';
+  }
+  return '<span style="background:'+color+'22;color:'+color+';padding:2px 9px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid '+color+'44">'+ubicacion+'</span>';
 }
 
 function toggleStockCritico(){
