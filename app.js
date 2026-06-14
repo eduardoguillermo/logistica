@@ -694,6 +694,26 @@ function editarMovimiento(id){
 // =======================================================
 var PROJ_ESTADOS = ['Planificado','En curso','Pausado','Finalizado','Cancelado'];
 
+function tareaEstado(t){
+  // Si tiene estado manual (OK o Cancelado) respetarlo
+  if(t.estadoManual==='OK') return 'OK';
+  if(t.estadoManual==='Cancelado') return 'Cancelado';
+  // Atrasado automático
+  if(t.fechaCumplimiento && t.fechaCumplimiento < today()) return 'Atrasado';
+  return 'En curso';
+}
+
+function tareaPill(estado){
+  var map={
+    'En curso': {bg:'var(--blue)',   label:'En curso'},
+    'OK':       {bg:'var(--green)',  label:'OK'},
+    'Atrasado': {bg:'var(--red)',    label:'Atrasado'},
+    'Cancelado':{bg:'var(--text3)', label:'Cancelado'}
+  };
+  var s=map[estado]||map['En curso'];
+  return '<span style="background:'+s.bg+';color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">'+s.label+'</span>';
+}
+
 function getNumProj(){
   var yr = new Date().getFullYear();
   var max = 0;
@@ -789,7 +809,8 @@ function modalNuevoProyecto(){
         onedriveLinks:[],
         materiales:[],
         historial:[{fecha:today(),accion:'Proyecto creado',estado:'Planificado'}],
-        notas:[]
+        notas:[],
+        tareas:[]
       };
       if(!DB.proyectos) DB.proyectos=[];
       DB.proyectos.unshift(proj);
@@ -868,6 +889,43 @@ function abrirProyecto(id){
         (esPlanif||esEnCurso||p.estado==='Pausado'?
           '<button class="btn" style="color:var(--red)" onclick="cancelarProyecto('+id+')">❌ Cancelar</button>':'')+
       '</div>':'');
+
+  // Tareas
+  if(esPlanif || esEnCurso || esFin){
+    body+='<hr class="div"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+      '<div class="sectitle" style="margin:0">Lista de tareas</div>'+
+      (!esFin?'<button class="btn btn-sm" onclick="agregarTareaProyecto('+id+')">+ Nueva tarea</button>':'')+
+    '</div>';
+
+    if(!(p.tareas||[]).length){
+      body+='<div class="empty" style="margin-bottom:12px">Sin tareas registradas.</div>';
+    } else {
+      var hoy2=today();
+      body+='<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'+
+        '<thead><tr style="background:var(--surface2)">'+
+          '<th style="padding:5px 10px;font-size:10px">Tarea</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Vencimiento</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
+          (!esFin?'<th style="padding:5px 10px;font-size:10px"></th>':'')+
+        '</tr></thead><tbody>'+
+        (p.tareas||[]).map(function(t,ti){
+          var estado=tareaEstado(t);
+          var vencColor=estado==='Atrasado'?'var(--red)':estado==='OK'?'var(--green)':'var(--text2)';
+          return '<tr style="border-bottom:1px solid var(--border)'+(estado==='Atrasado'?';background:rgba(239,83,80,0.06)':'')+'">'+
+            '<td style="padding:6px 10px;font-size:12px'+(estado==='OK'?';color:var(--text2);text-decoration:line-through':'')+'">'+t.desc+'</td>'+
+            '<td style="padding:6px 10px;text-align:center;font-size:11px;color:'+vencColor+'">'+(t.fechaCumplimiento||'--')+'</td>'+
+            '<td style="padding:6px 10px;text-align:center">'+tareaPill(estado)+'</td>'+
+            (!esFin?'<td style="padding:6px 10px;display:flex;gap:3px">'+
+              '<button class="btn btn-sm" onclick="editarTareaProyecto('+id+','+ti+')" title="Editar">✏️</button>'+
+              '<button class="btn btn-sm" onclick="marcarTareaOK('+id+','+ti+')" title="Marcar OK" style="color:var(--green)">✔</button>'+
+              '<button class="btn btn-sm" onclick="cancelarTarea('+id+','+ti+')" title="Cancelar" style="color:var(--text3)">✕</button>'+
+              '<button class="btn btn-sm" onclick="eliminarTarea('+id+','+ti+')" title="Eliminar" style="color:var(--red)">🗑</button>'+
+            '</td>':'')+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>';
+    }
+  }
 
   // Materiales
   body+='<div class="sectitle" style="margin-bottom:8px">Materiales del proyecto</div>';
@@ -963,6 +1021,77 @@ function abrirProyecto(id){
   }
 
   openModal('Proyecto '+p.numero, body, null, true);
+}
+
+function agregarTareaProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  openModal('Nueva tarea',
+    '<div class="fg2">'+
+      '<div class="fg full"><label>Descripcion *</label><input id="nt-desc" placeholder="Descripcion de la tarea..."></div>'+
+      '<div class="fg"><label>Fecha de cumplimiento</label><input id="nt-fecha" type="date"></div>'+
+    '</div>',
+    function(){
+      var desc=document.getElementById('nt-desc').value.trim();
+      if(!desc){alert('La descripcion es obligatoria.');return false;}
+      if(!p.tareas) p.tareas=[];
+      p.tareas.push({
+        desc:desc,
+        fechaCumplimiento:document.getElementById('nt-fecha').value,
+        estadoManual:null,
+        fechaCreacion:today()
+      });
+      save();cerrarModal();setTimeout(function(){abrirProyecto(id);},100);return true;
+    });
+}
+
+function editarTareaProyecto(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.tareas[idx]) return;
+  var t=p.tareas[idx];
+  var estadoActual=tareaEstado(t);
+  openModal('Editar tarea',
+    '<div class="fg2">'+
+      '<div class="fg full"><label>Descripcion *</label><input id="et-desc" value="'+t.desc.replace(/"/g,"'")+'" placeholder="Descripcion de la tarea..."></div>'+
+      '<div class="fg"><label>Fecha de cumplimiento</label><input id="et-fecha" type="date" value="'+(t.fechaCumplimiento||'')+'"></div>'+
+      '<div class="fg"><label>Estado (manual)</label>'+
+        '<select id="et-estado" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option value="">Automatico ('+(estadoActual)+')</option>'+
+          '<option value="OK"'+(t.estadoManual==='OK'?' selected':'')+'>OK</option>'+
+          '<option value="Cancelado"'+(t.estadoManual==='Cancelado'?' selected':'')+'>Cancelado</option>'+
+        '</select></div>'+
+    '</div>',
+    function(){
+      var desc=document.getElementById('et-desc').value.trim();
+      if(!desc){alert('La descripcion es obligatoria.');return false;}
+      t.desc=desc;
+      t.fechaCumplimiento=document.getElementById('et-fecha').value;
+      var est=document.getElementById('et-estado').value;
+      t.estadoManual=est||null;
+      save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);return true;
+    });
+}
+
+function marcarTareaOK(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.tareas[idx]) return;
+  p.tareas[idx].estadoManual='OK';
+  save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);
+}
+
+function cancelarTarea(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.tareas[idx]) return;
+  p.tareas[idx].estadoManual='Cancelado';
+  save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);
+}
+
+function eliminarTarea(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.tareas[idx]) return;
+  if(!confirm('Eliminar esta tarea?')) return;
+  p.tareas.splice(idx,1);
+  save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);
 }
 
 function editarOneDriveProyecto(id){
@@ -1352,6 +1481,33 @@ function reporteProyectos(){
       '</div>';
     } else {
       h+='<p style="font-size:12px;color:var(--text2)">Sin materiales registrados.</p>';
+    }
+
+    // Tareas en reporte
+    if((p.tareas||[]).length){
+      var ok=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
+      var atrasadas=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+      var enCurso=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='En curso';}).length;
+      var canceladas=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Cancelado';}).length;
+      h+='<div style="margin-bottom:8px">'+
+        '<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Tareas</div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
+          (ok?'<span style="background:var(--green);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+ok+' OK</span>':'')+
+          (atrasadas?'<span style="background:var(--red);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+atrasadas+' Atrasada'+(atrasadas>1?'s':'')+'</span>':'')+
+          (enCurso?'<span style="background:var(--blue);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+enCurso+' En curso</span>':'')+
+          (canceladas?'<span style="background:var(--text3);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+canceladas+' Cancelada'+(canceladas>1?'s':'')+'</span>':'')+
+        '</div>'+
+        '<table style="width:100%;border-collapse:collapse">'+
+        (p.tareas||[]).map(function(t){
+          var estado=tareaEstado(t);
+          var vc=estado==='Atrasado'?'var(--red)':estado==='OK'?'var(--green)':'var(--text2)';
+          return '<tr style="border-bottom:1px solid var(--border)'+(estado==='Atrasado'?';background:rgba(239,83,80,0.06)':'')+'">'+
+            '<td style="padding:4px 8px;font-size:11px'+(estado==='OK'?';color:var(--text2);text-decoration:line-through':'')+'">'+t.desc+'</td>'+
+            '<td style="padding:4px 8px;font-size:11px;color:'+vc+';text-align:center">'+(t.fechaCumplimiento||'--')+'</td>'+
+            '<td style="padding:4px 8px;text-align:center">'+tareaPill(estado)+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</table></div>';
     }
 
     h+='</div></div>';
@@ -1991,4 +2147,4 @@ function borrarTodo(){
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(function(){console.log('SW OK');}).catch(function(e){console.log('SW error:',e);});
 }
-goTo('proyectos');
+goTo('stock');
