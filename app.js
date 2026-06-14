@@ -146,6 +146,12 @@ function _iniciarApp(){
 function cerrarSesion(){
   if(!confirm('Cerrar sesión?')) return;
   _usuarioActual=null;
+  // Si login deshabilitado, volver a entrar directo
+  if(DB.config.loginDeshabilitado){
+    _usuarioActual={nombre:'dev',rol:'Administrador'};
+    _iniciarApp();
+    return;
+  }
   var loginScreen=document.getElementById('login-screen');
   if(loginScreen){
     loginScreen.classList.remove('hidden');
