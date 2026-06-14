@@ -1109,6 +1109,32 @@ function reporteStockPrecios(){
 // CONFIG
 // =======================================================
 var _saveTimer = null;
+function actualizarTC(){
+  var btn=document.getElementById('btn-tc');
+  var info=document.getElementById('cfg-tc-info');
+  if(btn) btn.textContent='...';
+  if(info) info.textContent='Consultando...';
+  fetch('https://api.bluelytics.com.ar/v2/latest')
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data&&data.oficial&&data.oficial.value_sell){
+        var venta=Math.round(data.oficial.value_sell);
+        var el=document.getElementById('cfg-tc');
+        if(el) el.value=venta;
+        if(btn) btn.textContent='BNA';
+        var fecha=data.last_update?new Date(data.last_update).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+        if(info) info.textContent='Venta oficial: $'+venta.toLocaleString('es-AR')+(fecha?' - '+fecha:'');
+        DB.config.tipoCambio=venta;
+        save();
+        setTimeout(function(){if(btn) btn.textContent='BNA';},3000);
+      } else { throw new Error('Sin datos'); }
+    })
+    .catch(function(err){
+      if(btn) btn.textContent='BNA';
+      if(info) info.textContent='Error al consultar. Ingresa manualmente.';
+    });
+}
+
 function renderConfig(){
   var cfg=DB.config||{};
   var el=document.getElementById('config-body');if(!el) return;
@@ -1117,7 +1143,12 @@ function renderConfig(){
       '<div class="fg"><label>Empresa</label><input id="cfg-empresa" value="'+(cfg.empresa||'')+'" oninput="saveConfig()"></div>'+
       '<div class="fg"><label>Email</label><input id="cfg-email" value="'+(cfg.email||'')+'" oninput="saveConfig()"></div>'+
       '<div class="fg"><label>Telefono</label><input id="cfg-tel" value="'+(cfg.tel||'')+'" oninput="saveConfig()"></div>'+
-      '<div class="fg"><label>Tipo de cambio U$S</label><input id="cfg-tc" type="number" min="1" value="'+(cfg.tipoCambio||1)+'" oninput="saveConfig()"></div>'+
+      '<div class="fg"><label>Tipo de cambio U$S -- vendedor BNA</label>'+
+        '<div style="display:flex;gap:6px;align-items:center">'+
+          '<input id="cfg-tc" type="number" min="1" value="'+(cfg.tipoCambio||1)+'" style="flex:1;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)" oninput="saveConfig()">'+
+          '<button id="btn-tc" class="btn btn-sm" onclick="actualizarTC()" title="Obtener cotizacion BNA">BNA</button>'+
+          '<span id="cfg-tc-info" style="font-size:10px;color:var(--text2)"></span>'+
+        '</div></div>'+
     '</div>'+
     '<hr class="div"><div class="sectitle" style="margin-bottom:10px">Motivos de salida</div>'+
     '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Estos son los motivos disponibles al registrar una salida manual.</div>'+
