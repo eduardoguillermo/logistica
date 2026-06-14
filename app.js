@@ -41,6 +41,7 @@ if(!DB.config.origenesEntrada) DB.config.origenesEntrada = defData().config.orig
 if(!DB.config.razonesPausa) DB.config.razonesPausa = defData().config.razonesPausa;
 if(!DB.proyectos) DB.proyectos=[];
 if(!DB.proyNid) DB.proyNid=1;
+if(!DB.movimientosArchivados) DB.movimientosArchivados=[];
 
 DB.ordenes.forEach(function(o,i){
   if(!o.numero) o.numero = 'OC-'+( o.fecha?o.fecha.slice(0,4):new Date().getFullYear())+'-'+String(i+1).padStart(4,'0');
@@ -51,7 +52,8 @@ DB.componentes.forEach(function(c){ if(!c.area) c.area='Fabrica'; });
 var _stockCache = null;
 function _buildStockCache(){
   _stockCache = {};
-  DB.movimientos.forEach(function(m){
+  var todos=(DB.movimientosArchivados||[]).concat(DB.movimientos);
+  todos.forEach(function(m){
     var cid = m.cid||m.compId;
     if(!cid) return;
     if(!_stockCache[cid]) _stockCache[cid] = 0;
@@ -2881,10 +2883,68 @@ function renderBackupInfo(){
   var kb=Math.round(JSON.stringify(DB).length/1024);
   el.innerHTML=
     fbox('Componentes',DB.componentes.length)+
-    fbox('Movimientos',DB.movimientos.length)+
+    fbox('Movimientos activos',DB.movimientos.length)+
+    fbox('Movimientos archivados',(DB.movimientosArchivados||[]).length)+
     fbox('Ordenes de compra',DB.ordenes.length)+
     fbox('Proveedores',DB.proveedores.length)+
-    fbox('Tamano de datos',kb+' KB');
+    fbox('Tamano de datos',kb+' KB')+
+    '<div style="margin-top:14px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r)">'+
+      '<div style="font-size:11px;font-weight:700;margin-bottom:8px">Archivar movimientos viejos</div>'+
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:10px">Mueve movimientos anteriores a X meses al archivo historico. No afecta el stock (el cache lo recalcula desde ambas fuentes).</div>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<label style="font-size:12px">Archivar movimientos de mas de</label>'+
+        '<input id="arch-meses" type="number" min="1" max="60" value="6" style="width:60px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:12px">'+
+        '<label style="font-size:12px">meses</label>'+
+        '<button class="btn btn-p" onclick="archivarMovimientos()">Archivar</button>'+
+        ((DB.movimientosArchivados||[]).length?'<button class="btn" onclick="verMovimientosArchivados()">Ver archivados ('+DB.movimientosArchivados.length+')</button>':'')+''+
+      '</div>'+
+    '</div>';
+}
+
+function archivarMovimientos(){
+  var meses=parseInt(document.getElementById('arch-meses')?document.getElementById('arch-meses').value:6)||6;
+  var corte=new Date();
+  corte.setMonth(corte.getMonth()-meses);
+  var fechaCorte=corte.getFullYear()+'-'+String(corte.getMonth()+1).padStart(2,'0')+'-'+String(corte.getDate()).padStart(2,'0');
+  var aArchivar=DB.movimientos.filter(function(m){return (m.fecha||'')<fechaCorte;});
+  if(!aArchivar.length){alert('No hay movimientos anteriores a '+meses+' meses para archivar.');return;}
+  if(!confirm('Archivar '+aArchivar.length+' movimientos anteriores al '+fechaCorte+'?\nQuedan accesibles en "Ver archivados" y en los backups.')) return;
+  if(!DB.movimientosArchivados) DB.movimientosArchivados=[];
+  DB.movimientosArchivados=DB.movimientosArchivados.concat(aArchivar);
+  DB.movimientos=DB.movimientos.filter(function(m){return (m.fecha||'')>=fechaCorte;});
+  save();
+  alert('Archivados '+aArchivar.length+' movimientos. Stock no modificado.');
+  renderBackupInfo();
+}
+
+function verMovimientosArchivados(){
+  var arch=DB.movimientosArchivados||[];
+  if(!arch.length){alert('No hay movimientos archivados.');return;}
+  var list=[...arch].sort(function(a,b){return (b.fecha||'').localeCompare(a.fecha||'');});
+  var h='<div style="font-size:11px;color:var(--text2);margin-bottom:10px">'+arch.length+' movimientos archivados. Solo lectura.</div>'+
+    '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="background:var(--surface2)">'+
+        '<th style="padding:5px 8px;font-size:10px">Fecha</th>'+
+        '<th style="padding:5px 8px;font-size:10px">Componente</th>'+
+        '<th style="padding:5px 8px;font-size:10px">Tipo</th>'+
+        '<th style="padding:5px 8px;font-size:10px;text-align:center">Cant</th>'+
+        '<th style="padding:5px 8px;font-size:10px">Nota</th>'+
+      '</tr></thead><tbody>'+
+      list.slice(0,200).map(function(m){
+        var comp=DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{desc:'?',unidad:''};
+        var esEnt=m.tipo==='Entrada';
+        return '<tr style="border-bottom:1px solid var(--border)">'+
+          '<td style="padding:4px 8px;font-size:11px;color:var(--text2)">'+m.fecha+'</td>'+
+          '<td style="padding:4px 8px;font-size:11px">'+comp.desc+'</td>'+
+          '<td style="padding:4px 8px;font-size:11px">'+m.tipo+'</td>'+
+          '<td style="padding:4px 8px;text-align:center;font-size:11px;font-weight:700;color:'+(esEnt?'var(--green)':'var(--red)')+'">'+
+            (esEnt?'+':'-')+(m.cant||0)+'</td>'+
+          '<td style="padding:4px 8px;font-size:10px;color:var(--text2)">'+(m.nota||m.origen||'--')+'</td>'+
+        '</tr>';
+      }).join('')+
+      (list.length>200?'<tr><td colspan="5" style="padding:8px;text-align:center;color:var(--text2);font-size:11px">...y '+(list.length-200)+' mas</td></tr>':'')+
+      '</tbody></table>';
+  openModal('Movimientos archivados',h,null,true);
 }
 
 function migrarDesdeVSS4(){
