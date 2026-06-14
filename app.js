@@ -17,7 +17,8 @@ function defData(){
       tel: '',
       tipoCambio: 1,
       motivosSalida: ['Merma / descarte','Uso interno / prototipo','Garantia cliente','Reposicion a cliente','Prueba de calidad','Devolucion a proveedor','Rotura / dano'],
-      origenesEntrada: ['Compra','Devolucion','Otro']
+      origenesEntrada: ['Compra','Devolucion','Otro'],
+      razonesPausa: ['Espera material','Espera presupuesto','Espera MO']
     },
     proyectos: [],
     proyNid: 1
@@ -37,6 +38,7 @@ if(!DB.proveedores)  DB.proveedores  = [];
 if(!DB.config)       DB.config       = defData().config;
 if(!DB.config.motivosSalida)  DB.config.motivosSalida  = defData().config.motivosSalida;
 if(!DB.config.origenesEntrada) DB.config.origenesEntrada = defData().config.origenesEntrada;
+if(!DB.config.razonesPausa) DB.config.razonesPausa = defData().config.razonesPausa;
 if(!DB.proyectos) DB.proyectos=[];
 if(!DB.proyNid) DB.proyNid=1;
 
@@ -1537,25 +1539,31 @@ function iniciarCierreProyecto(id){
 function pausarProyecto(id){
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
-  var razones=['Espera material','Espera presupuesto','Espera MO','Otro'];
+  var razones=DB.config.razonesPausa||['Espera material','Espera presupuesto','Espera MO'];
   openModal('Pausar proyecto -- '+p.numero,
     '<div class="fg">'+
       '<label>Razon de la pausa *</label>'+
-      '<select id="pausa-razon" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
+      '<select id="pausa-razon" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)" onchange="document.getElementById(\'pausa-otro-wrap\').style.display=this.value===\'Otro\'?\'block\':\'none\'">'+
         razones.map(function(r){return '<option value="'+r+'">'+r+'</option>';}).join('')+
+        '<option value="Otro">+ Otro (agregar a lista)...</option>'+
       '</select>'+
     '</div>'+
     '<div class="fg" id="pausa-otro-wrap" style="display:none">'+
-      '<label>Especificar</label>'+
+      '<label>Nueva razon</label>'+
       '<input id="pausa-otro" placeholder="Describir razon...">'+
-    '</div>'+
-    '<script>document.getElementById("pausa-razon").addEventListener("change",function(){document.getElementById("pausa-otro-wrap").style.display=this.value==="Otro"?"block":"none";});<\/script>',
+    '</div>',
     function(){
       var razonEl=document.getElementById('pausa-razon');
       var razon=razonEl?razonEl.value:'';
       if(razon==='Otro'){
         var otro=document.getElementById('pausa-otro');
-        razon='Otro: '+(otro&&otro.value.trim()?otro.value.trim():'sin especificar');
+        var nueva=otro&&otro.value.trim()?otro.value.trim():'';
+        if(!nueva){alert('Ingresa una razon.');return false;}
+        // Agregar a la lista si no existe
+        if(DB.config.razonesPausa.indexOf(nueva)===-1){
+          DB.config.razonesPausa.push(nueva);
+        }
+        razon=nueva;
       }
       if(!razon){alert('Selecciona una razon.');return false;}
       p.fechaPausa=today();
