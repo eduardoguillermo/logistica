@@ -271,6 +271,14 @@ function fillProvFilter(){
   sel.innerHTML = '<option value="">Todos los proveedores</option>'+provs.map(function(p){return '<option value="'+p+'"'+(p===cur?' selected':'')+'>'+p+'</option>';}).join('');
 }
 
+function fillCajonerFilter(selId){
+  var sel=document.getElementById(selId);
+  if(!sel) return;
+  var cur=sel.value;
+  var cajs=[...new Set(DB.componentes.map(function(c){return (c.ubicacion||'').trim();}).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">Todas las cajoneras</option>'+cajs.map(function(c){return '<option'+(c===cur?' selected':'')+'>'+c+'</option>';}).join('');
+}
+
 function sortCatalogo(col){
   if(_catSort.col===col) _catSort.dir*=-1;
   else { _catSort.col=col; _catSort.dir=1; }
@@ -280,13 +288,16 @@ function sortCatalogo(col){
 function renderCatalogo(){
   fillCatFilter('cat-filter');
   fillProvFilter();
-  var q     = (document.getElementById('q-cat').value||'').toLowerCase();
-  var fc    = document.getElementById('cat-filter').value;
-  var fprov = document.getElementById('cat-prov-filter')?document.getElementById('cat-prov-filter').value:'';
+  fillCajonerFilter('cat-cajon-filter');
+  var q      = (document.getElementById('q-cat').value||'').toLowerCase();
+  var fc     = document.getElementById('cat-filter').value;
+  var fprov  = document.getElementById('cat-prov-filter')?document.getElementById('cat-prov-filter').value:'';
+  var fcajon = document.getElementById('cat-cajon-filter')?document.getElementById('cat-cajon-filter').value:'';
   var list  = DB.componentes.filter(function(c){
     return (!q||(c.codigo+c.desc+(c.proveedor||'')+(c.ubicacion||'')+(c.categoria||'')).toLowerCase().includes(q))
       &&(!fc||c.categoria===fc)
-      &&(!fprov||(c.proveedor||'').trim()===fprov);
+      &&(!fprov||(c.proveedor||'').trim()===fprov)
+      &&(!fcajon||(c.ubicacion||'').trim()===fcajon);
   });
   list.sort(function(a,b){
     var va='',vb='';
