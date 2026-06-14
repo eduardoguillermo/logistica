@@ -873,6 +873,24 @@ function abrirProyecto(id){
     // Descripcion
     '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text2)">'+
       '<strong style="color:var(--text)">'+p.nombre+'</strong>'+(p.descripcion?'<br>'+p.descripcion:'')+'</div>'+
+    // BARRA DE ACCIONES DESTACADA
+    (!esFin?
+      '<div style="background:#1e1e2e;border:1px solid #3a3a5a;border-radius:var(--r);padding:10px 14px;margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+        '<span style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-right:4px">Acciones</span>'+
+        (esPlanif?
+          '<button class="btn btn-p" onclick="confirmarPlanificacion('+id+')">✅ Confirmar planificacion</button>':'')+
+        (esPlanif||esEnCurso?
+          '<button class="btn" onclick="agregarMaterialProyecto('+id+')">&#x2795; Material</button>':'')+
+        (esPlanif||esEnCurso||p.estado==='Pausado'?
+          '<button class="btn" onclick="agregarTareaProyecto('+id+')">&#x1F4CB; Tarea</button>':'')+
+        (esEnCurso?
+          '<button class="btn" onclick="iniciarCierreProyecto('+id+')">&#x1F3C1; Iniciar cierre</button>'+
+          '<button class="btn" style="color:var(--amber);border-color:var(--amber)" onclick="pausarProyecto('+id+')">&#x23F8; Pausar</button>':'')+
+        (p.estado==='Pausado'?
+          '<button class="btn btn-p" onclick="cambiarEstadoProyecto('+id+",\'En curso\')"+'>&#x25B6; Reanudar</button>':'')+
+        (esPlanif||esEnCurso||p.estado==='Pausado'?
+          '<button class="btn" style="color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
+      '</div>':'')+''+
     // Presupuesto y avance
     '<hr class="div">'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">'+
@@ -944,20 +962,8 @@ function abrirProyecto(id){
       '<button class="btn btn-sm" onclick="agregarLinkProyecto('+id+')">+ Agregar otro link</button>'+
     '</div>'+
 
-    // Acciones de estado
-    (!esFin?
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+
-        (esPlanif?
-          '<button class="btn btn-p" onclick="confirmarPlanificacion('+id+')">✅ Confirmar planificacion y reservar stock</button>':'')+
-        (esEnCurso?
-          '<button class="btn" onclick="agregarMaterialProyecto('+id+')">➕ Agregar material</button>'+
-          '<button class="btn" onclick="iniciarCierreProyecto('+id+')">🏁 Iniciar cierre</button>'+
-          '<button class="btn" style="color:var(--amber)" onclick="pausarProyecto('+id+')">⏸ Pausar</button>':'')+
-        (p.estado==='Pausado'?
-          '<button class="btn btn-p" onclick="cambiarEstadoProyecto('+id+',\'En curso\')">▶ Reanudar</button>':'')+
-        (esPlanif||esEnCurso||p.estado==='Pausado'?
-          '<button class="btn" style="color:var(--red)" onclick="cancelarProyecto('+id+')">❌ Cancelar</button>':'')+
-      '</div>':'');
+    // Acciones movidas a barra destacada post-header
+    '';
 
   // Tareas
   if(esPlanif || esEnCurso || esFin){
