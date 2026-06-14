@@ -1508,19 +1508,56 @@ function guardarNotaProyecto(id){
 function agregarMaterialProyecto(projId){
   var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
   if(!p) return;
-  var compOpts=[...DB.componentes].sort(function(a,b){return (a.desc||'').localeCompare(b.desc||'','es');}).map(function(c){
+  var compsSorted=[...DB.componentes].sort(function(a,b){return (a.desc||'').localeCompare(b.desc||'','es');});
+  var datalistOpts=compsSorted.map(function(c){
     var stock=stockActual(c.id);
-    return '<option value="'+c.id+'">[Stock: '+stock+'] '+c.codigo+' -- '+c.desc+'</option>';
+    return '<option value="'+c.id+'" label="['+stock+'] '+c.codigo+' -- '+c.desc+'">'+c.codigo+' -- '+c.desc+'</option>';
   }).join('');
+  // Opciones para el select oculto (búsqueda real)
+  var selectOpts=compsSorted.map(function(c){
+    var stock=stockActual(c.id);
+    return '<option value="'+c.id+'">['+stock+'] '+c.codigo+' -- '+c.desc+'</option>';
+  }).join('');
+
   openModal('Agregar material -- '+p.numero,
     '<div class="fg2">'+
-      '<div class="fg full"><label>Componente *</label>'+
-        '<select id="am-comp" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
-          '<option value="">-- seleccionar --</option>'+compOpts+'</select></div>'+
-      '<div class="fg"><label>Cantidad *</label><input id="am-cant" type="number" min="1" value="1"></div>'+
+      '<div class="fg full"><label>Componente * <span style="font-size:10px;color:var(--text2)">(escribi para buscar)</span></label>'+
+        '<input id="am-comp-txt" list="am-comp-dl" placeholder="Escribi codigo o descripcion..." autocomplete="off" '+
+          'style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
+        '<datalist id="am-comp-dl">'+
+          compsSorted.map(function(c){
+            var stock=stockActual(c.id);
+            return '<option value="'+c.codigo+' -- '+c.desc+'" data-id="'+c.id+'">[Stock: '+stock+'] '+c.codigo+'</option>';
+          }).join('')+
+        '</datalist>'+
+        '<input type="hidden" id="am-comp">'+
+        // Script para resolver el ID al seleccionar
+        '<script>(function(){'+
+          'var compMap={};'+
+          compsSorted.map(function(c){return 'compMap["'+c.codigo+' -- '+c.desc+'"]="'+c.id+'";';}).join('')+
+          'document.getElementById("am-comp-txt").addEventListener("input",function(){'+
+            'var v=this.value.trim();'+
+            'var id=compMap[v]||"";'+
+            'document.getElementById("am-comp").value=id;'+
+            'var comp='+JSON.stringify(compsSorted.map(function(c){return {id:c.id,stock:stockActual(c.id),costo:parseFloat(c.costo)||0,unidad:c.unidad||''};})).replace(/<\/script>/gi,'<\\/script>')+';'+
+            'var found=comp.find(function(c){return String(c.id)===String(id);});'+
+            'var info=document.getElementById("am-comp-info");'+
+            'if(found&&info){info.textContent="Stock disponible: "+found.stock+" "+found.unidad+" | Costo: $"+Math.round(found.costo).toLocaleString("es-AR");}'+
+            'else if(info){info.textContent="";}'+
+          '});'+
+        '})();<\/script>'+
+        '<div id="am-comp-info" style="font-size:11px;color:#4fc3f7;margin-top:4px;min-height:16px"></div>'+
+      '</div>'+
+      '<div class="fg"><label>Cantidad *</label><input id="am-cant" type="number" min="0.01" step="0.01" value="1"></div>'+
     '</div>',
     function(){
       var compId=parseInt(document.getElementById('am-comp').value)||0;
+      // Fallback: intentar resolver por texto si el hidden está vacío
+      if(!compId){
+        var txt=(document.getElementById('am-comp-txt')?document.getElementById('am-comp-txt').value||'':'').trim();
+        var found=compsSorted.find(function(c){return (c.codigo+' -- '+c.desc)===txt;});
+        if(found) compId=found.id;
+      }
       var cant=parseFloat(document.getElementById('am-cant').value)||0;
       if(!compId||!cant){alert('Selecciona un componente e ingresa la cantidad.');return false;}
       var comp=DB.componentes.find(function(c){return c.id===compId;})||{};
