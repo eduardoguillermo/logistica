@@ -2276,35 +2276,58 @@ function cambiarEstadoOrden(id){
     if(o.estado==='Cancelada'){alert('Esta orden esta Cancelada.');return;}
     var sigR=curR>=0?flujoReserva[curR+1]:flujoReserva[1];
     if(!sigR) sigR='Recibida';
-    if(!confirm('Cambiar estado a "'+sigR+'"?')) return;
-    o.estado=sigR;
-    if(sigR==='Recibida'){
-      var p=o.proyId?(DB.proyectos||[]).find(function(x){return x.id===o.proyId;}):null;
-      o.items.forEach(function(item){
-        var comp=DB.componentes.find(function(x){return x.id===item.cid;})||{desc:'?',unidad:''};
-        // Registrar entrada al stock
-        DB.movimientos.push({id:DB.nid++,cid:item.cid,tipo:'Entrada',cant:item.cant,fecha:today(),ref:'Orden #'+(o.numero||o.id),nota:'Recepcion OC reserva',origen:'Compra'});
-        // Si hay proyecto vinculado, asignar el saldo pendiente
-        if(p){
-          var mat=p.materiales.find(function(m){return m.compId===item.cid;});
-          var pendiente=mat?parseFloat(mat.cantPendienteOC)||0:0;
-          if(pendiente>0){
-            var aAsignar=Math.min(pendiente,item.cant);
-            var remanente=item.cant-aAsignar;
-            // Salida del stock hacia el proyecto por el saldo pendiente
-            DB.movimientos.push({id:DB.nid++,cid:item.cid,tipo:'Salida instalacion',cant:aAsignar,fecha:today(),nota:'Asignacion saldo OC '+o.numero+' a proyecto '+p.numero,origen:'Proyecto',estadoMat:'N',proyId:p.id});
-            if(mat){
-              mat.cantPendienteOC=Math.max(0,pendiente-aAsignar);
-              mat.entregado=(parseFloat(mat.entregado)||0)+aAsignar;
-            }
-            p.historial.push({fecha:today(),accion:'Recibida OC '+o.numero+': '+aAsignar+' '+comp.unidad+' '+comp.desc+' asignados al proyecto'+(remanente>0?' -- '+remanente+' en stock':' -- sin remanente')});
-          }
+    if(sigR!=='Recibida'){
+      if(!confirm('Cambiar estado a "'+sigR+'"?')) return;
+      o.estado=sigR;
+      save();renderOrdenes();renderStock();
+      return;
+    }
+    // Al recibir: mostrar modal de confirmacion con detalle
+    var pRec=o.proyId?(DB.proyectos||[]).find(function(x){return x.id===o.proyId;}):null;
+    var detalleItems=o.items.map(function(item){
+      var comp=DB.componentes.find(function(x){return x.id===item.cid;})||{desc:'?',unidad:''};
+      var mat=pRec?(pRec.materiales||[]).find(function(m){return m.compId===item.cid;}):null;
+      var pendiente=mat?parseFloat(mat.cantPendienteOC)||0:0;
+      var aAsignar=Math.min(pendiente,item.cant);
+      var remanente=item.cant-aAsignar;
+      return {comp:comp,cant:item.cant,cid:item.cid,pendiente:pendiente,aAsignar:aAsignar,remanente:remanente};
+    });
+    var htmlDet=
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:10px">'+
+        '<strong style="color:var(--text)">OC '+o.numero+'</strong> &middot; '+o.proveedor+
+        (pRec?' &middot; Proyecto <span style="color:var(--primary)">'+pRec.numero+' -- '+pRec.nombre+'</span>':'')+
+      '</div>'+
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'+
+        '<thead><tr style="background:var(--surface2)">'+
+          '<th style="padding:5px 8px;font-size:10px;text-align:left">Material</th>'+
+          '<th style="padding:5px 8px;font-size:10px;text-align:center">Llega</th>'+
+          '<th style="padding:5px 8px;font-size:10px;text-align:center;color:var(--primary)">Al proyecto</th>'+
+          '<th style="padding:5px 8px;font-size:10px;text-align:center;color:#66bb6a">Al stock</th>'+
+        '</tr></thead><tbody>'+
+        detalleItems.map(function(d){
+          return '<tr style="border-bottom:1px solid var(--border)">'+
+            '<td style="padding:5px 8px;font-size:11px">'+d.comp.desc+'</td>'+
+            '<td style="padding:5px 8px;text-align:center;font-size:11px">'+d.cant+' '+(d.comp.unidad||'')+'</td>'+
+            '<td style="padding:5px 8px;text-align:center;font-size:11px;font-weight:700;color:var(--primary)">'+d.aAsignar+' '+(d.comp.unidad||'')+'</td>'+
+            '<td style="padding:5px 8px;text-align:center;font-size:11px;font-weight:700;color:#66bb6a">'+d.remanente+' '+(d.comp.unidad||'')+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>'+
+      '<div style="font-size:11px;color:var(--text2)">Confirmar recepcion y asignacion automatica?</div>';
+    openModal('Recibir OC de reserva', htmlDet, function(){
+      detalleItems.forEach(function(d){
+        DB.movimientos.push({id:DB.nid++,cid:d.cid,tipo:'Entrada',cant:d.cant,fecha:today(),ref:'Orden #'+(o.numero||o.id),nota:'Recepcion OC reserva',origen:'Compra'});
+        if(pRec&&d.aAsignar>0){
+          var mat=pRec.materiales.find(function(m){return m.compId===d.cid;});
+          DB.movimientos.push({id:DB.nid++,cid:d.cid,tipo:'Salida instalacion',cant:d.aAsignar,fecha:today(),nota:'Asignacion saldo OC '+o.numero+' a proyecto '+pRec.numero,origen:'Proyecto',estadoMat:'N',proyId:pRec.id});
+          if(mat){mat.cantPendienteOC=Math.max(0,(parseFloat(mat.cantPendienteOC)||0)-d.aAsignar);mat.entregado=(parseFloat(mat.entregado)||0)+d.aAsignar;}
+          pRec.historial.push({fecha:today(),accion:'Recibida OC '+o.numero+': '+d.aAsignar+' '+d.comp.unidad+' '+d.comp.desc+' al proyecto'+(d.remanente>0?', '+d.remanente+' al stock':'')});
         }
       });
-      if(p) alert('Stock actualizado.\nEl saldo pendiente fue asignado al proyecto '+p.numero+'.');
-      else alert('Stock actualizado con los items recibidos.');
-    }
-    save();renderOrdenes();renderStock();
+      o.estado='Recibida';
+      save();renderOrdenes();renderStock();
+      return true;
+    });
     return;
   }
   // Flujo normal (OC no de reserva)
