@@ -881,12 +881,19 @@ function abrirProyecto(id){
   body+='<hr class="div"><div class="sectitle" style="margin-bottom:8px">Notas y comentarios</div>';
   if((p.notas||[]).length){
     body+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">';
-    (p.notas||[]).slice().reverse().forEach(function(n){
+    (p.notas||[]).slice().reverse().forEach(function(n,ri){
+      var realIdx=(p.notas||[]).length-1-ri;
       var color=etapaColors[n.etapa]||'#555';
       body+='<div style="background:var(--surface2);border-radius:var(--r);padding:8px 12px;border-left:3px solid '+color+'">'+
-        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">'+
-          '<span style="font-family:monospace;font-size:10px;color:var(--text2)">'+n.fecha+' '+n.hora+'</span>'+
-          '<span style="background:'+color+';color:#fff;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700">'+n.etapa+'</span>'+
+        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;justify-content:space-between">'+
+          '<div style="display:flex;gap:8px;align-items:center">'+
+            '<span style="font-family:monospace;font-size:10px;color:var(--text2)">'+n.fecha+' '+n.hora+'</span>'+
+            '<span style="background:'+color+';color:#fff;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700">'+n.etapa+'</span>'+
+          '</div>'+
+          '<div style="display:flex;gap:4px">'+
+            '<button class="btn btn-sm" onclick="editarNotaProyecto('+id+','+realIdx+')" title="Editar">✏️</button>'+
+            '<button class="btn btn-sm" style="color:var(--red)" onclick="eliminarNotaProyecto('+id+','+realIdx+')" title="Eliminar">X</button>'+
+          '</div>'+
         '</div>'+
         '<div style="font-size:12px;color:var(--text);white-space:pre-wrap">'+n.texto+'</div>'+
       '</div>';
@@ -922,6 +929,43 @@ function abrirProyecto(id){
   }
 
   openModal('Proyecto '+p.numero, body, null, true);
+}
+
+function editarNotaProyecto(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.notas[idx]) return;
+  var n=p.notas[idx];
+  var etapaColors={'Planificacion':'#1565C0','Ejecucion':'#2E7D32','Cierre':'#6A1B9A'};
+  openModal('Editar nota',
+    '<div style="display:flex;flex-direction:column;gap:8px">'+
+      '<div style="font-size:11px;color:var(--text2);font-family:monospace">'+n.fecha+' '+n.hora+'</div>'+
+      '<select id="en-etapa" style="padding:6px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+        '<option value="Planificacion"'+(n.etapa==='Planificacion'?' selected':'')+'>Planificacion</option>'+
+        '<option value="Ejecucion"'+(n.etapa==='Ejecucion'?' selected':'')+'>Ejecucion</option>'+
+        '<option value="Cierre"'+(n.etapa==='Cierre'?' selected':'')+'>Cierre</option>'+
+      '</select>'+
+      '<textarea id="en-texto" rows="5" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text);resize:vertical;font-family:inherit;width:100%">'+n.texto+'</textarea>'+
+    '</div>',
+    function(){
+      var txt=document.getElementById('en-texto').value.trim();
+      if(!txt){alert('El texto no puede estar vacio.');return false;}
+      p.notas[idx].texto=txt;
+      p.notas[idx].etapa=document.getElementById('en-etapa').value;
+      p.notas[idx].editado=today();
+      save();
+      setTimeout(function(){abrirProyecto(projId);},100);
+      return true;
+    });
+}
+
+function eliminarNotaProyecto(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.notas[idx]) return;
+  if(!confirm('Eliminar esta nota?')) return;
+  p.notas.splice(idx,1);
+  save();
+  cerrarModal();
+  setTimeout(function(){abrirProyecto(projId);},100);
 }
 
 function guardarNotaProyecto(id){
