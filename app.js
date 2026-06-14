@@ -2633,7 +2633,9 @@ function renderDashboard(){
         '</div>':'')+
       (p.fechaInicio&&p.fechaEstFin?
         '<div style="background:var(--surface2);border-radius:3px;height:4px;overflow:hidden"><div style="height:100%;background:'+barColor+';width:'+pct+'%"></div></div>'+
-        '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+pct+'% tiempo &middot; fin: '+p.fechaEstFin+(esPausado&&p.fechaPausa?' &middot; pausado: '+p.fechaPausa+(p.razonPausa?' &middot; '+p.razonPausa:''):'')+'</div>':'')+'</div>';
+        '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+pct+'% tiempo &middot; fin: '+p.fechaEstFin+(esPausado&&p.fechaPausa?' &middot; pausado: '+p.fechaPausa:'')+'</div>':'')+
+      (esPausado&&p.razonPausa?'<div style="margin-top:4px"><span style="background:#2a2000;border:1px solid #665500;color:#ffcc44;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">⏸ '+p.razonPausa+'</span></div>':'')+
+      '</div>';
   }
 
   if(!proyActivos.length && !proyPausados.length){
