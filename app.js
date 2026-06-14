@@ -904,23 +904,23 @@ function abrirProyecto(id){
     // BARRA DE ACCIONES STICKY
     (!esFin?
       '<div style="position:sticky;top:0;z-index:10;background:#1e1e2e;border-bottom:2px solid var(--primary);padding:10px 14px;margin:-12px -16px 16px -16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
-        // PLANIFICADO
         (esPlanif?
           '<button class="btn btn-p" style="font-size:12px;padding:6px 14px" onclick="confirmarPlanificacion('+id+')">✅ Confirmar planificacion</button>'+
-          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarMaterialProyecto('+id+')">➕ Material</button>'+
-          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarTareaProyecto('+id+')">📋 Tarea</button>'+
-          '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">❌ Cancelar</button>':'')+
-        // EN CURSO
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarMaterialProyecto('+id+')">&#x2795; Material</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarTareaProyecto('+id+')">&#x1F4CB; Tarea</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
         (esEnCurso?
-          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarMaterialProyecto('+id+')">➕ Material</button>'+
-          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarTareaProyecto('+id+')">📋 Tarea</button>'+
-          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="iniciarCierreProyecto('+id+')">🏁 Iniciar cierre</button>'+
-          '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--amber);border-color:var(--amber)" onclick="pausarProyecto('+id+')">⏸ Pausar</button>'+
-          '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">❌ Cancelar</button>':'')+
-        // PAUSADO
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarMaterialProyecto('+id+')">&#x2795; Material</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarTareaProyecto('+id+')">&#x1F4CB; Tarea</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="iniciarCierreProyecto('+id+')">&#x1F3C1; Iniciar cierre</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--amber);border-color:var(--amber)" onclick="pausarProyecto('+id+')">&#x23F8; Pausar</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
         (p.estado==='Pausado'?
-          '<button class="btn btn-p" style="font-size:12px;padding:6px 14px" onclick="cambiarEstadoProyecto('+id+',\'En curso\')">▶ Reanudar</button>'+
-          '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">❌ Cancelar</button>':'')+
+          '<button class="btn btn-p" style="font-size:12px;padding:6px 14px" onclick="cambiarEstadoProyecto('+id+",'En curso')"+'>&#x25B6; Reanudar</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
       '</div>':'')+''+
     // Presupuesto y avance
     '<hr class="div">'+
