@@ -344,12 +344,14 @@ function renderStock(){
   });
 
   var tb = document.getElementById('tbody-stock');
-  if(!list.length){tb.innerHTML='<tr><td colspan="12" class="empty">Sin componentes.</td></tr>';return;}
+  if(!list.length){tb.innerHTML='<tr><td colspan="13" class="empty">Sin componentes.</td></tr>';return;}
   tb.innerHTML = list.map(function(c){
     var cant = stockActual(c.id);
     var min  = parseFloat(c.min)||0;
     var eMat = c.estadoMat==='R'?'<span class="pill p-a">R</span>':'<span class="pill p-g">N</span>';
     var ubic = cajonBadge(c.ubicacion, c.nroCajon);
+    var costo = parseFloat(c.costo)||0;
+    var valorTotal = cant * costo;
     return '<tr>'+
       '<td class="mono" style="font-size:11px">'+c.codigo+'</td>'+
       '<td><strong>'+c.desc+'</strong></td>'+
@@ -360,8 +362,11 @@ function renderStock(){
       '<td>'+(c.proveedor||'--')+'</td>'+
       '<td>'+(c.area||'--')+'</td>'+
       '<td style="text-align:center">'+eMat+'</td>'+
-      '<td style="text-align:right;font-size:11px">'+(c.costo?'$'+Math.round(parseFloat(c.costo)).toLocaleString('es-AR'):'--')+'</td>'+
-      '<td style="text-align:right;font-size:11px">'+((c.costo_usd||c.costoUSD)?'U$S '+parseFloat(c.costo_usd||c.costoUSD).toFixed(1):(c.costo&&tc>1?'U$S '+Math.round(parseFloat(c.costo)/tc):'--'))+'</td>'+
+      '<td style="text-align:right;font-size:11px">'+(costo?'$'+Math.round(costo).toLocaleString('es-AR'):'--')+'</td>'+
+      '<td style="text-align:right;font-size:11px">'+((c.costo_usd||c.costoUSD)?'U$S '+parseFloat(c.costo_usd||c.costoUSD).toFixed(1):(costo&&tc>1?'U$S '+Math.round(costo/tc):'--'))+'</td>'+
+      '<td style="text-align:right;font-size:11px;font-weight:700;color:'+(valorTotal>0?'var(--text)':'var(--text3)')+'">'+
+        (valorTotal>0?'$'+Math.round(valorTotal).toLocaleString('es-AR'):'--')+
+      '</td>'+
       '<td></td>'+
     '</tr>';
   }).join('');
