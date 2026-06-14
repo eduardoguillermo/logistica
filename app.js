@@ -770,6 +770,8 @@ function modalNuevoProyecto(){
       '<div class="fg full"><label>Descripcion</label><textarea id="np-desc" rows="3" placeholder="Descripcion del proyecto..."></textarea></div>'+
       '<div class="fg"><label>Fecha inicio</label><input id="np-finicio" type="date" value="'+today()+'"></div>'+
       '<div class="fg"><label>Fecha estimada fin</label><input id="np-festfin" type="date"></div>'+
+      '<div class="fg full"><label>OneDrive — link carpeta de fotos/docs</label>'+
+        '<input id="np-onedrive" placeholder="https://onedrive.live.com/..." type="url"></div>'+
     '</div>',
     function(){
       var nombre=document.getElementById('np-nombre').value.trim();
@@ -783,6 +785,8 @@ function modalNuevoProyecto(){
         fechaInicio:document.getElementById('np-finicio').value,
         fechaEstFin:document.getElementById('np-festfin').value,
         fechaFinReal:'',
+        onedrive:document.getElementById('np-onedrive')?document.getElementById('np-onedrive').value.trim():'',
+        onedriveLinks:[],
         materiales:[],
         historial:[{fecha:today(),accion:'Proyecto creado',estado:'Planificado'}],
         notas:[]
@@ -823,6 +827,33 @@ function abrirProyecto(id){
     // Descripcion
     '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text2)">'+
       '<strong style="color:var(--text)">'+p.nombre+'</strong>'+(p.descripcion?'<br>'+p.descripcion:'')+'</div>'+
+    // OneDrive links
+    '<hr class="div"><div class="sectitle" style="margin-bottom:8px">📁 OneDrive — Fotos y documentos</div>'+
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">'+
+      // Link principal del proyecto
+      (p.onedrive?
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<span style="font-size:11px;color:var(--text2);flex-shrink:0">Carpeta principal:</span>'+
+          '<a href="'+p.onedrive+'" target="_blank" style="color:var(--blue);font-size:12px;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.onedrive+'</a>'+
+          '<button class="btn btn-sm" onclick="editarOneDriveProyecto('+id+')" title="Editar link">✏️</button>'+
+        '</div>'
+      :
+        '<button class="btn btn-sm" onclick="editarOneDriveProyecto('+id+')">+ Agregar carpeta OneDrive</button>'
+      )+
+      // Links adicionales
+      ((p.onedriveLinks||[]).length?
+        '<div style="display:flex;flex-direction:column;gap:4px">'+
+        (p.onedriveLinks||[]).map(function(l,li){
+          return '<div style="display:flex;align-items:center;gap:8px">'+
+            '<span style="background:var(--surface2);padding:1px 8px;border-radius:10px;font-size:10px;color:var(--text2);flex-shrink:0">'+l.etiqueta+'</span>'+
+            '<a href="'+l.url+'" target="_blank" style="color:var(--blue);font-size:12px;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+l.url+'</a>'+
+            '<button class="btn btn-sm" style="color:var(--red)" onclick="eliminarLinkProyecto('+id+','+li+')">X</button>'+
+          '</div>';
+        }).join('')+
+        '</div>':'')+
+      '<button class="btn btn-sm" onclick="agregarLinkProyecto('+id+')">+ Agregar otro link</button>'+
+    '</div>'+
+
     // Acciones de estado
     (!esFin?
       '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+
@@ -895,7 +926,8 @@ function abrirProyecto(id){
             '<button class="btn btn-sm" style="color:var(--red)" onclick="eliminarNotaProyecto('+id+','+realIdx+')" title="Eliminar">X</button>'+
           '</div>'+
         '</div>'+
-        '<div style="font-size:12px;color:var(--text);white-space:pre-wrap">'+n.texto+'</div>'+
+        '<div style="font-size:12px;color:var(--text);white-space:pre-wrap;margin-bottom:'+(n.url?'6':'0')+'px">'+n.texto+'</div>'+
+        (n.url?'<a href="'+n.url+'" target="_blank" style="font-size:11px;color:var(--blue);text-decoration:none;display:flex;align-items:center;gap:4px">📎 Ver fotos/docs en OneDrive</a>':'')+
       '</div>';
     });
     body+='</div>';
@@ -913,6 +945,8 @@ function abrirProyecto(id){
       '</div>'+
       '<textarea id="proj-nota-txt" rows="3" placeholder="Escribi una nota o comentario..." '+
         'style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text);resize:vertical;font-family:inherit;width:100%"></textarea>'+
+      '<input id="proj-nota-url" type="url" placeholder="Link OneDrive opcional (fotos de esta nota)" '+
+        'style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text);width:100%">'+
       '<button class="btn btn-p" style="align-self:flex-end" onclick="guardarNotaProyecto('+id+')">💬 Guardar nota</button>'+
     '</div>';
 
@@ -929,6 +963,45 @@ function abrirProyecto(id){
   }
 
   openModal('Proyecto '+p.numero, body, null, true);
+}
+
+function editarOneDriveProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  openModal('Carpeta principal OneDrive',
+    '<div class="fg"><label>URL de la carpeta en OneDrive</label>'+
+      '<input id="od-url" type="url" value="'+(p.onedrive||'')+'" placeholder="https://onedrive.live.com/..." style="width:100%"></div>',
+    function(){
+      var url=document.getElementById('od-url').value.trim();
+      p.onedrive=url;
+      save();cerrarModal();setTimeout(function(){abrirProyecto(id);},100);return true;
+    });
+}
+
+function agregarLinkProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  openModal('Agregar link adicional',
+    '<div class="fg2">'+
+      '<div class="fg"><label>Etiqueta</label><input id="al-etiqueta" placeholder="Ej: Fotos instalacion, Planos, Factura..."></div>'+
+      '<div class="fg full"><label>URL OneDrive</label><input id="al-url" type="url" placeholder="https://onedrive.live.com/..." style="width:100%"></div>'+
+    '</div>',
+    function(){
+      var url=document.getElementById('al-url').value.trim();
+      var etiqueta=document.getElementById('al-etiqueta').value.trim()||'Link';
+      if(!url){alert('Ingresa una URL.');return false;}
+      if(!p.onedriveLinks) p.onedriveLinks=[];
+      p.onedriveLinks.push({etiqueta:etiqueta,url:url,fecha:today()});
+      save();cerrarModal();setTimeout(function(){abrirProyecto(id);},100);return true;
+    });
+}
+
+function eliminarLinkProyecto(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.onedriveLinks[idx]) return;
+  if(!confirm('Eliminar este link?')) return;
+  p.onedriveLinks.splice(idx,1);
+  save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);
 }
 
 function editarNotaProyecto(projId, idx){
@@ -978,11 +1051,13 @@ function guardarNotaProyecto(id){
   var d=new Date();
   var hh=String(d.getHours()).padStart(2,'0');
   var mm=String(d.getMinutes()).padStart(2,'0');
+  var urlEl=document.getElementById('proj-nota-url');
   p.notas.push({
     fecha:today(),
     hora:hh+':'+mm,
     etapa:etapaEl?etapaEl.value:'Ejecucion',
-    texto:txt.value.trim()
+    texto:txt.value.trim(),
+    url:urlEl?urlEl.value.trim():''
   });
   save();
   cerrarModal();
