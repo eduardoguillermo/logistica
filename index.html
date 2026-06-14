@@ -93,9 +93,57 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .fgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
 hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
 .sectitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--primary);margin-bottom:6px}
+
+#splash{position:fixed;inset:0;background:#0f0f0f;z-index:9999;display:flex;align-items:center;justify-content:center;transition:opacity .6s ease}
+#splash.fade-out{opacity:0;pointer-events:none}
+#splash-prog{height:100%;width:0%;background:#B71C1C;border-radius:2px;animation:splashprog 7s linear forwards}
+@keyframes splashprog{from{width:0%}to{width:100%}}
 </style>
 </head>
 <body>
+<div id="splash">
+  <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:22px;padding:40px 32px">
+    <svg width="100" height="108" viewBox="0 0 90 100" xmlns="http://www.w3.org/2000/svg">
+      <path d="M45 4 L82 18 L82 52 Q82 76 45 96 Q8 76 8 52 L8 18 Z" fill="#B71C1C"/>
+      <path d="M45 12 L75 24 L75 52 Q75 72 45 88 Q15 72 15 52 L15 24 Z" fill="none" stroke="#fff" stroke-width="1.2" opacity="0.2"/>
+      <path d="M45 4 L82 18 L82 52 Q82 76 45 96 Q8 76 8 52 L8 18 Z" fill="none" stroke="#7f0000" stroke-width="2"/>
+      <text x="45" y="63" font-family="Arial Black,Arial,sans-serif" font-size="36" font-weight="900" fill="#fff" text-anchor="middle">V</text>
+      <line x1="20" y1="30" x2="70" y2="30" stroke="#fff" stroke-width="0.8" opacity="0.25"/>
+      <circle cx="18" cy="26" r="2" fill="#fff" opacity="0.2"/>
+      <circle cx="72" cy="26" r="2" fill="#fff" opacity="0.2"/>
+      <circle cx="45" cy="92" r="2" fill="#fff" opacity="0.2"/>
+    </svg>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div style="font-family:Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:4px;color:#B71C1C;text-transform:uppercase">Viking Security Systems</div>
+      <div style="width:200px;height:1px;background:#2e2e2e"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <div style="font-family:Arial,sans-serif;font-size:21px;font-weight:700;color:#f0f0f0">Sistema Logístico</div>
+      <div style="font-family:Arial,sans-serif;font-size:21px;font-weight:700;color:#f0f0f0">y Gestión de Stocks</div>
+    </div>
+    <div style="display:flex;gap:20px;align-items:center">
+      <div style="font-family:monospace;font-size:12px;color:#555;letter-spacing:1px" id="splash-fecha"></div>
+      <div style="width:1px;height:12px;background:#2e2e2e"></div>
+      <div style="font-family:monospace;font-size:12px;color:#555;letter-spacing:1px">v1.0.0</div>
+    </div>
+    <div style="width:180px;height:2px;background:#1a1a1a;border-radius:2px;overflow:hidden">
+      <div id="splash-prog"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var d=new Date();
+  var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var el=document.getElementById('splash-fecha');
+  if(el) el.textContent=dias[d.getDay()]+' '+d.getDate()+' '+meses[d.getMonth()]+'. '+d.getFullYear();
+  setTimeout(function(){
+    var s=document.getElementById('splash');
+    if(s){s.classList.add('fade-out');setTimeout(function(){s.remove();},650);}
+  },7000);
+})();
+</script>
 <nav class="nav">
   <div class="nav-logo">
     <div class="logo-icon">📦</div>
