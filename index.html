@@ -177,7 +177,11 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
 </nav>
 <div class="main">
   <div class="topbar">
-    <div class="ptitle" id="ptitle">Stock</div>
+    <div style="display:flex;align-items:center;gap:14px;min-width:0">
+      <div style="font-size:11px;font-weight:700;color:var(--primary);letter-spacing:2px;text-transform:uppercase;white-space:nowrap;flex-shrink:0">VSS Logística</div>
+      <div style="width:1px;height:16px;background:var(--border);flex-shrink:0"></div>
+      <div class="ptitle" id="ptitle" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Stock</div>
+    </div>
     <div class="pacts" id="pacts"></div>
   </div>
   <div class="content">
