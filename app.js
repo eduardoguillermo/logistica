@@ -42,6 +42,11 @@ if(!DB.config.razonesPausa) DB.config.razonesPausa = defData().config.razonesPau
 if(!DB.proyectos) DB.proyectos=[];
 if(!DB.proyNid) DB.proyNid=1;
 if(!DB.movimientosArchivados) DB.movimientosArchivados=[];
+if(!DB.config.usuarios) DB.config.usuarios=[
+  {nombre:'admin',password:'admin123',rol:'Administrador'},
+  {nombre:'operador',password:'op123',rol:'Operador'}
+];
+if(DB.config.loginDeshabilitado===undefined) DB.config.loginDeshabilitado=false;
 
 DB.ordenes.forEach(function(o,i){
   if(!o.numero) o.numero = 'OC-'+( o.fecha?o.fecha.slice(0,4):new Date().getFullYear())+'-'+String(i+1).padStart(4,'0');
@@ -89,6 +94,100 @@ function fbox(l,v,mono){ return '<div class="fbox"><div class="fl">'+l+'</div><d
 // NAV
 // =======================================================
 const PANELS = ['dashboard','stock','catalogo','movimientos','proyectos','ordenes','proveedores','reportes','config','backup'];
+
+// ============================================================
+// CONTROL DE ACCESO
+// ============================================================
+var _usuarioActual = null; // {nombre, rol}
+
+function intentarLogin(){
+  // Si login deshabilitado, entrar directo como admin
+  if(DB.config.loginDeshabilitado){
+    _usuarioActual={nombre:'dev',rol:'Administrador'};
+    _iniciarApp();
+    return;
+  }
+  var user=(document.getElementById('login-user')?document.getElementById('login-user').value.trim():'');
+  var pass=(document.getElementById('login-pass')?document.getElementById('login-pass').value:'');
+  var errEl=document.getElementById('login-error');
+  if(!user||!pass){if(errEl)errEl.textContent='Ingresa usuario y contraseña.';return;}
+  var found=(DB.config.usuarios||[]).find(function(u){return u.nombre===user&&u.password===pass;});
+  if(!found){
+    if(errEl)errEl.textContent='Usuario o contraseña incorrectos.';
+    var loginPass=document.getElementById('login-pass');
+    if(loginPass){loginPass.value='';loginPass.focus();}
+    var loginBox=document.getElementById('login-box');
+    if(loginBox){loginBox.style.animation='none';void loginBox.offsetWidth;loginBox.style.animation='shake .4s ease';}
+    return;
+  }
+  _usuarioActual={nombre:found.nombre,rol:found.rol};
+  var loginScreen=document.getElementById('login-screen');
+  if(loginScreen) loginScreen.classList.add('hidden');
+  _iniciarApp();
+}
+
+function _iniciarApp(){
+  // Mostrar usuario en nav
+  var navUser=document.getElementById('nav-usuario');
+  if(navUser&&_usuarioActual) navUser.innerHTML='<strong style="color:var(--text)">'+_usuarioActual.nombre+'</strong><br><span style="color:'+(esAdmin()?'var(--primary)':'var(--amber)')+'">'+_usuarioActual.rol+'</span>';
+  // Aplicar restricciones de nav para operador
+  _aplicarRestriccionesNav();
+  // Iniciar splash
+  if(typeof iniciarSplash==='function') iniciarSplash();
+}
+
+function cerrarSesion(){
+  if(!confirm('Cerrar sesión?')) return;
+  _usuarioActual=null;
+  var loginScreen=document.getElementById('login-screen');
+  if(loginScreen){
+    loginScreen.classList.remove('hidden');
+    var u=document.getElementById('login-user');
+    var p=document.getElementById('login-pass');
+    var e=document.getElementById('login-error');
+    if(u) u.value='';if(p) p.value='';if(e) e.textContent='';
+    if(u) u.focus();
+  }
+}
+
+function esAdmin(){return _usuarioActual&&_usuarioActual.rol==='Administrador';}
+function esOperador(){return _usuarioActual&&_usuarioActual.rol==='Operador';}
+
+function _aplicarRestriccionesNav(){
+  if(esAdmin()) return; // admin ve todo
+  // Ocultar config y backup para operador
+  var ocultar=['nav-config','nav-backup'];
+  ocultar.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.style.display='none';
+  });
+}
+
+// Verificar permiso antes de ejecutar acción restringida
+function requireAdmin(fn){
+  if(!esAdmin()){alert('Acción no permitida para el rol Operador.');return;}
+  fn();
+}
+
+// Agregar shake animation al CSS dinámicamente
+(function(){
+  var style=document.createElement('style');
+  style.textContent='@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}';
+  document.head.appendChild(style);
+})();
+
+// Arrancar: mostrar login o ir directo si está deshabilitado
+(function(){
+  if(DB.config.loginDeshabilitado){
+    _usuarioActual={nombre:'dev',rol:'Administrador'};
+    var ls=document.getElementById('login-screen');
+    if(ls) ls.classList.add('hidden');
+    _iniciarApp();
+  } else {
+    // Enfocar campo usuario
+    setTimeout(function(){var u=document.getElementById('login-user');if(u)u.focus();},100);
+  }
+})();
 
 function goTo(p){
   PANELS.forEach(function(x){
@@ -408,6 +507,7 @@ function calcPreciosCompUSD(){
 }
 
 function modalComponente(id){
+  if(esOperador()){alert("Accion no permitida para Operador.");return;}
   var c = id!=null ? DB.componentes.find(function(x){return x.id===id;}) : null;
   var cats=[...new Set(DB.componentes.map(function(x){return x.categoria;}))].filter(Boolean);
   var catOpts=cats.map(function(x){return '<option'+(c&&c.categoria===x?' selected':'')+'>'+x+'</option>';}).join('');
@@ -515,6 +615,7 @@ function duplicarComponente(id){
 }
 
 function eliminarComponente(id){
+  if(esOperador()){alert("Accion no permitida para Operador.");return;}
   if(!confirm('Eliminar este componente? Se perderan sus movimientos.')) return;
   DB.componentes=DB.componentes.filter(function(x){return x.id!==id;});
   DB.movimientos=DB.movimientos.filter(function(x){return x.cid!==id;});
@@ -874,6 +975,7 @@ function renderProyectos(){
 }
 
 function modalNuevoProyecto(){
+  if(esOperador()){alert("Accion no permitida para Operador.");return;}
   var num=getNumProj();
   openModal('Nuevo proyecto',
     '<div class="fg2">'+
@@ -1669,6 +1771,7 @@ function quitarMaterialProyecto(projId, idx){
 }
 
 function confirmarPlanificacion(id){
+  if(esOperador()){alert("Accion no permitida para Operador.");return;}
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
   if(!(p.materiales||[]).length){alert('Agrega materiales antes de confirmar.');return;}
@@ -1738,6 +1841,7 @@ function confirmarPlanificacion(id){
 }
 
 function iniciarCierreProyecto(id){
+  if(esOperador()){alert("Accion no permitida para Operador.");return;}
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
   var sobrantes=p.materiales.filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
@@ -1891,6 +1995,7 @@ function cambiarEstadoProyecto(id, nuevoEstado){
 }
 
 function cancelarProyecto(id){
+  if(esOperador()){alert("Accion no permitida para Operador.");return;}
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
   var msg='Cancelar el proyecto '+p.numero+'?';
@@ -3028,7 +3133,35 @@ function renderConfig(){
     '<div id="origenes-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+
       (cfg.origenesEntrada||[]).map(function(o,i){return '<div style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px">'+o+'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0" onclick="eliminarOrigen('+i+')">x</button></div>';}).join('')+
     '</div>'+
-    '<div style="display:flex;gap:8px"><input id="nuevo-origen" placeholder="Nuevo origen..." style="flex:1"><button class="btn" onclick="agregarOrigen()">+ Agregar</button></div>';
+    '<div style="display:flex;gap:8px"><input id="nuevo-origen" placeholder="Nuevo origen..." style="flex:1"><button class="btn" onclick="agregarOrigen()">+ Agregar</button></div>'+
+    // SECCION CONTROL DE ACCESO
+    '<hr class="div"><div class="sectitle" style="margin-bottom:10px">Control de acceso</div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:var(--surface2);border-radius:var(--r);padding:10px 14px">'+
+      '<input type="checkbox" id="cfg-login-off" '+(DB.config.loginDeshabilitado?'checked':'')+' onchange="toggleLogin(this.checked)" style="width:16px;height:16px;cursor:pointer">'+
+      '<div>'+
+        '<div style="font-size:12px;font-weight:700">Deshabilitar login <span style="background:#2a1a00;color:#ffb74d;padding:1px 7px;border-radius:8px;font-size:9px">DESARROLLO</span></div>'+
+        '<div style="font-size:11px;color:var(--text2);margin-top:2px">Cuando está activado entra directo como Administrador sin pedir credenciales.</div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Usuarios registrados:</div>'+
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'+
+      '<thead><tr style="background:var(--surface2)">'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:left">Usuario</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:left">Rol</th>'+
+        '<th style="padding:5px 10px;font-size:10px"></th>'+
+      '</tr></thead><tbody>'+
+      (DB.config.usuarios||[]).map(function(u,i){
+        return '<tr style="border-bottom:1px solid var(--border)">'+
+          '<td style="padding:6px 10px;font-size:12px;font-weight:700">'+u.nombre+'</td>'+
+          '<td style="padding:6px 10px"><span style="background:'+(u.rol==='Administrador'?'#3a0000':'#2a1a00')+';color:'+(u.rol==='Administrador'?'var(--primary)':'var(--amber)')+';padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">'+u.rol+'</span></td>'+
+          '<td style="padding:6px 10px;display:flex;gap:4px">'+
+            '<button class="btn btn-sm" onclick="editarUsuario('+i+')">Editar</button>'+
+            (DB.config.usuarios.length>1?'<button class="btn btn-sm" style="color:var(--red)" onclick="eliminarUsuario('+i+')">X</button>':'')+
+          '</td>'+
+        '</tr>';
+      }).join('')+
+      '</tbody></table>'+
+    '<button class="btn btn-p" onclick="nuevoUsuario()">+ Nuevo usuario</button>';
 }
 function saveConfig(){
   if(!DB.config) DB.config={};
@@ -3061,6 +3194,62 @@ function agregarOrigen(){
 function eliminarOrigen(i){
   if(!confirm('Eliminar este origen?')) return;
   DB.config.origenesEntrada.splice(i,1);save();renderConfig();
+}
+
+function toggleLogin(val){
+  DB.config.loginDeshabilitado=val;
+  save();
+}
+
+function nuevoUsuario(){
+  openModal('Nuevo usuario',
+    '<div class="fg2">'+
+      '<div class="fg"><label>Usuario *</label><input id="nu-nombre" placeholder="nombre de usuario"></div>'+
+      '<div class="fg"><label>Contraseña *</label><input id="nu-pass" type="password" placeholder="contraseña"></div>'+
+      '<div class="fg"><label>Rol</label>'+
+        '<select id="nu-rol" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option>Operador</option><option>Administrador</option>'+
+        '</select></div>'+
+    '</div>',
+    function(){
+      var nombre=document.getElementById('nu-nombre').value.trim();
+      var pass=document.getElementById('nu-pass').value;
+      var rol=document.getElementById('nu-rol').value;
+      if(!nombre||!pass){alert('Usuario y contraseña son obligatorios.');return false;}
+      if((DB.config.usuarios||[]).find(function(u){return u.nombre===nombre;})){alert('Ya existe un usuario con ese nombre.');return false;}
+      if(!DB.config.usuarios) DB.config.usuarios=[];
+      DB.config.usuarios.push({nombre:nombre,password:pass,rol:rol});
+      save();renderConfig();return true;
+    });
+}
+
+function editarUsuario(idx){
+  var u=(DB.config.usuarios||[])[idx];
+  if(!u) return;
+  openModal('Editar usuario -- '+u.nombre,
+    '<div class="fg2">'+
+      '<div class="fg"><label>Nueva contraseña</label><input id="eu-pass" type="password" placeholder="dejar vacio para no cambiar"></div>'+
+      '<div class="fg"><label>Rol</label>'+
+        '<select id="eu-rol" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option'+(u.rol==='Operador'?' selected':'')+'>Operador</option>'+
+          '<option'+(u.rol==='Administrador'?' selected':'')+'>Administrador</option>'+
+        '</select></div>'+
+    '</div>',
+    function(){
+      var pass=document.getElementById('eu-pass').value;
+      var rol=document.getElementById('eu-rol').value;
+      if(pass) u.password=pass;
+      u.rol=rol;
+      save();renderConfig();return true;
+    });
+}
+
+function eliminarUsuario(idx){
+  var u=(DB.config.usuarios||[])[idx];
+  if(!u) return;
+  if(!confirm('Eliminar usuario "'+u.nombre+'"?')) return;
+  DB.config.usuarios.splice(idx,1);
+  save();renderConfig();
 }
 
 // =======================================================
