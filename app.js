@@ -136,10 +136,13 @@ function _iniciarApp(){
   if(navUser&&_usuarioActual) navUser.innerHTML='<strong style="color:var(--text)">'+_usuarioActual.nombre+'</strong><br><span style="color:'+(esAdmin()?'var(--primary)':'var(--amber)')+'">'+_usuarioActual.rol+'</span>';
   // Aplicar restricciones de nav para operador
   _aplicarRestriccionesNav();
-  // Iniciar splash solo la primera vez
+  // Splash e ir al dashboard
   if(!_appYaIniciada){
     _appYaIniciada=true;
     if(typeof iniciarSplash==='function') iniciarSplash();
+    setTimeout(function(){goTo('dashboard');alertaTareasProximas();},7800);
+  } else {
+    goTo('dashboard');
   }
 }
 
@@ -3776,9 +3779,6 @@ function borrarTodo(){
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(function(){console.log('SW OK');}).catch(function(e){console.log('SW error:',e);});
 }
-goTo('dashboard');
-// Mostrar alerta de tareas proximas tras el splash
-setTimeout(function(){ alertaTareasProximas(); }, 7800);
 
 // =======================================================
 // DASHBOARD
