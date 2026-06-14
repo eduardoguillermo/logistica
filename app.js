@@ -3861,7 +3861,7 @@ function renderDashboard(){
     var tieneEntregaParcial=(p.materiales||[]).some(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
     var color=esPausado?'var(--text2)':'var(--primary)';
     var barColor=esPausado?'#555':(pct>=100?'var(--red)':'var(--blue)');
-    return '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+
+    return '<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--border)">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
         '<span style="font-size:12px;font-weight:700;cursor:pointer;color:'+color+'" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.nombre+'</span>'+
         '<span style="font-family:monospace;font-size:10px;color:var(--text2)">'+p.numero+'</span>'+
@@ -3883,14 +3883,14 @@ function renderDashboard(){
   if(!proyActivos.length && !proyPausados.length){
     h += '<div class="empty">Sin proyectos en curso.</div>';
   } else {
-    proyActivos.slice(0,5).forEach(function(p){ h += filaProyecto(p, false); });
+    proyActivos.slice(0,3).forEach(function(p){ h += filaProyecto(p, false); });
     if(proyPausados.length){
       h += '<div style="display:flex;align-items:center;gap:8px;margin:10px 0 8px">'+
         '<div style="flex:1;height:1px;background:var(--border)"></div>'+
         '<span style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">⏸ Pausados</span>'+
         '<div style="flex:1;height:1px;background:var(--border)"></div>'+
       '</div>';
-      proyPausados.slice(0,5).forEach(function(p){ h += filaProyecto(p, true); });
+      proyPausados.slice(0,2).forEach(function(p){ h += filaProyecto(p, true); });
     }
   }
   h += '</div></div>';
@@ -3909,18 +3909,18 @@ function renderDashboard(){
         '<th style="font-size:10px;color:#ce93d8;padding:3px 4px;text-align:center;border-bottom:1px solid var(--border)">Reserva</th>'+
         '<th style="font-size:10px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">Min</th>'+
       '</tr></thead>';
-    stockCritico.slice(0,8).forEach(function(c){
+    stockCritico.slice(0,4).forEach(function(c){
       var cant=stockActual(c.id);
       var reserva=stockReservado(c.id);
       h += '<tr style="border-bottom:1px solid var(--border)">'+
-        '<td style="padding:5px 0;font-size:11px">'+c.desc+'</td>'+
-        '<td style="padding:5px 4px;text-align:center;font-weight:700;color:'+(cant<=0?'var(--red)':'var(--amber)')+'">'+cant+'</td>'+
-        '<td style="padding:5px 4px;text-align:center;font-size:10px;color:#ce93d8">'+(reserva>0?reserva:'--')+'</td>'+
-        '<td style="padding:5px 0;font-size:10px;color:var(--text2)">'+( c.min||0)+'</td>'+
+        '<td style="padding:3px 0;font-size:11px">'+c.desc+'</td>'+
+        '<td style="padding:3px 4px;text-align:center;font-weight:700;color:'+(cant<=0?'var(--red)':'var(--amber)')+'">'+cant+'</td>'+
+        '<td style="padding:3px 4px;text-align:center;font-size:10px;color:#ce93d8">'+(reserva>0?reserva:'--')+'</td>'+
+        '<td style="padding:3px 0;font-size:10px;color:var(--text2)">'+( c.min||0)+'</td>'+
       '</tr>';
     });
     h += '</table>';
-    if(stockCritico.length>8) h += '<div style="font-size:11px;color:var(--text2);margin-top:6px">...y '+(stockCritico.length-8)+' mas</div>';
+    if(stockCritico.length>4) h += '<div style="font-size:11px;color:var(--text2);margin-top:6px">...y '+(stockCritico.length-4)+' mas</div>';
   }
   h += '</div></div>';
 
