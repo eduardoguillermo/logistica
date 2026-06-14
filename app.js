@@ -891,7 +891,7 @@ function abrirProyecto(id){
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">❌ Cancelar</button>':'')+
         // PAUSADO
         (p.estado==='Pausado'?
-          '<button class="btn btn-p" style="font-size:12px;padding:6px 14px" onclick="cambiarEstadoProyecto('+id+",'En curso')"+'>▶ Reanudar</button>'+
+          '<button class="btn btn-p" style="font-size:12px;padding:6px 14px" onclick="cambiarEstadoProyecto('+id+',\'En curso\')">▶ Reanudar</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">❌ Cancelar</button>':'')+
       '</div>':'')+''+
     // Presupuesto y avance
