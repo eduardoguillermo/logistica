@@ -1538,8 +1538,57 @@ function cambiarEstadoProyecto(id, nuevoEstado){
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
   if(!confirm('Cambiar estado a "'+nuevoEstado+'"?')) return;
+
+  if(nuevoEstado==='Pausado'){
+    // Registrar fecha de pausa y dias restantes al pausar
+    p.fechaPausa=today();
+    if(p.fechaEstFin){
+      var hoyD=new Date(today());
+      var finD=new Date(p.fechaEstFin);
+      p.diasRestantesAlPausar=Math.max(0,Math.round((finD-hoyD)/(1000*60*60*24)));
+    }
+    p.historial.push({fecha:today(),accion:'Proyecto pausado. Dias restantes: '+(p.diasRestantesAlPausar||0)+'. Fin estimado al pausar: '+(p.fechaEstFin||'--'),estado:'Pausado'});
+
+  } else if(nuevoEstado==='En curso' && p.estado==='Pausado'){
+    // Calcular dias de pausa
+    var hoyStr=today();
+    var diasPausa=0;
+    if(p.fechaPausa){
+      var pausaD=new Date(p.fechaPausa);
+      var hoyD2=new Date(hoyStr);
+      diasPausa=Math.max(0,Math.round((hoyD2-pausaD)/(1000*60*60*24)));
+    }
+    // Reprogramar fecha fin: hoy + diasRestantesAlPausar
+    var nuevaFechaFin=p.fechaEstFin;
+    if(diasPausa>0 && p.fechaEstFin){
+      var finD2=new Date(p.fechaEstFin);
+      finD2.setDate(finD2.getDate()+diasPausa);
+      nuevaFechaFin=finD2.getFullYear()+'-'+String(finD2.getMonth()+1).padStart(2,'0')+'-'+String(finD2.getDate()).padStart(2,'0');
+      p.fechaEstFin=nuevaFechaFin;
+    }
+    // Reprogramar tareas no OK: correr diasPausa dias, tope = nueva fechaEstFin
+    var tareasReprog=0;
+    if(diasPausa>0){
+      (p.tareas||[]).forEach(function(t){
+        if(tareaEstado(t)==='OK') return;
+        if(!t.fechaCumplimiento) return;
+        var td=new Date(t.fechaCumplimiento);
+        td.setDate(td.getDate()+diasPausa);
+        var nuevaFechaT=td.getFullYear()+'-'+String(td.getMonth()+1).padStart(2,'0')+'-'+String(td.getDate()).padStart(2,'0');
+        // Tope: no puede superar la nueva fecha fin del proyecto
+        if(nuevaFechaFin && nuevaFechaT>nuevaFechaFin) nuevaFechaT=nuevaFechaFin;
+        t.fechaCumplimiento=nuevaFechaT;
+        tareasReprog++;
+      });
+    }
+    p.fechaReanudacion=hoyStr;
+    p.historial.push({fecha:hoyStr,accion:'Proyecto reanudado. Pausa: '+diasPausa+' dias. Nueva fecha fin: '+nuevaFechaFin+(tareasReprog?' -- '+tareasReprog+' tarea(s) reprogramadas':''),estado:'En curso'});
+
+  } else {
+    p.historial.push({fecha:today(),accion:'Estado cambiado a '+nuevoEstado,estado:nuevoEstado});
+  }
+
   p.estado=nuevoEstado;
-  p.historial.push({fecha:today(),accion:'Estado cambiado a '+nuevoEstado,estado:nuevoEstado});
   save();cerrarModal();renderProyectos();
   setTimeout(function(){abrirProyecto(id);},100);
 }
