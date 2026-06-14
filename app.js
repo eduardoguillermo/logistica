@@ -1991,4 +1991,4 @@ function borrarTodo(){
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(function(){console.log('SW OK');}).catch(function(e){console.log('SW error:',e);});
 }
-goTo('stock');
+goTo('proyectos');
