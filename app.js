@@ -187,21 +187,24 @@ function renderStock(){
     return _stockSort.dir*va.localeCompare(vb);
   });
 
-  var total = DB.componentes.length;
-  var criticos = DB.componentes.filter(function(c){return stockActual(c.id)<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;}).length;
-  var sinStock = DB.componentes.filter(function(c){return stockActual(c.id)<=0;}).length;
-  var valorTotal = DB.componentes.reduce(function(a,c){return a+stockActual(c.id)*(parseFloat(c.costo)||0);},0);
-  var valorUSD   = DB.componentes.reduce(function(a,c){
+  // Stats basados en la lista filtrada
+  var total = list.length;
+  var criticos = list.filter(function(c){return stockActual(c.id)<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;}).length;
+  var sinStock = list.filter(function(c){return stockActual(c.id)<=0;}).length;
+  var valorTotal = list.reduce(function(a,c){return a+stockActual(c.id)*(parseFloat(c.costo)||0);},0);
+  var valorUSD   = list.reduce(function(a,c){
     var cu=parseFloat(c.costo_usd||c.costoUSD)||(tc>1?(parseFloat(c.costo)||0)/tc:0);
     return a+stockActual(c.id)*cu;
   },0);
+  var filtrado = list.length < DB.componentes.length;
+  var labelComp = filtrado ? total+' de '+DB.componentes.length+' comp.' : total+' componentes';
 
   document.getElementById('stock-stats').innerHTML =
-    '<div class="stat"><div class="stat-n">'+total+'</div><div class="stat-l">Componentes</div></div>'+
+    '<div class="stat"><div class="stat-n">'+(filtrado?'<span style="font-size:13px">'+total+'</span><span style="font-size:10px;color:var(--text2)"> / '+DB.componentes.length+'</span>':total)+'</div><div class="stat-l">'+( filtrado?'Filtrados':'Componentes')+'</div></div>'+
     '<div class="stat"><div class="stat-n red">'+sinStock+'</div><div class="stat-l">Sin stock</div></div>'+
     '<div class="stat"><div class="stat-n amber">'+criticos+'</div><div class="stat-l">Stock critico</div></div>'+
-    '<div class="stat"><div class="stat-n blue">$'+Math.round(valorTotal).toLocaleString('es-AR')+'</div><div class="stat-l">Valor $</div></div>'+
-    '<div class="stat"><div class="stat-n blue">U$S '+Math.round(valorUSD).toLocaleString('es-AR')+'</div><div class="stat-l">Valor U$S</div></div>';
+    '<div class="stat"><div class="stat-n blue">$'+Math.round(valorTotal).toLocaleString('es-AR')+'</div><div class="stat-l">Valor $'+(filtrado?' (filtro)':'')+'</div></div>'+
+    '<div class="stat"><div class="stat-n blue">U$S '+Math.round(valorUSD).toLocaleString('es-AR')+'</div><div class="stat-l">Valor U$S'+(filtrado?' (filtro)':'')+'</div></div>';
 
   var scols = {codigo:'Codigo',desc:'Descripcion',categoria:'Categoria',cant:'Cantidad',area:'Area',ubicacion:'Cajonera / Cajon'};
   Object.keys(scols).forEach(function(col){
