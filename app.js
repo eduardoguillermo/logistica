@@ -742,7 +742,13 @@ function renderProyectos(){
   var activos=(DB.proyectos||[]).filter(function(p){return p.estado==='En curso';}).length;
   var planif=(DB.proyectos||[]).filter(function(p){return p.estado==='Planificado';}).length;
   var fin=(DB.proyectos||[]).filter(function(p){return p.estado==='Finalizado';}).length;
-  var valorTotal=(DB.proyectos||[]).filter(function(p){return p.estado!=='Cancelado'&&p.estado!=='Finalizado';}).reduce(function(a,p){
+  var valorActivo=(DB.proyectos||[]).filter(function(p){return p.estado!=='Cancelado'&&p.estado!=='Finalizado';}).reduce(function(a,p){
+    return a+(p.materiales||[]).reduce(function(b,m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      return b+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+    },0);
+  },0);
+  var valorHistorico=(DB.proyectos||[]).filter(function(p){return p.estado!=='Cancelado';}).reduce(function(a,p){
     return a+(p.materiales||[]).reduce(function(b,m){
       var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
       return b+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
@@ -753,7 +759,8 @@ function renderProyectos(){
     '<div class="stat"><div class="stat-n amber">'+planif+'</div><div class="stat-l">Planificados</div></div>'+
     '<div class="stat"><div class="stat-n blue">'+activos+'</div><div class="stat-l">En curso</div></div>'+
     '<div class="stat"><div class="stat-n green">'+fin+'</div><div class="stat-l">Finalizados</div></div>'+
-    '<div class="stat"><div class="stat-n">$'+Math.round(valorTotal).toLocaleString('es-AR')+'</div><div class="stat-l">Valor comprometido</div></div>';
+    '<div class="stat"><div class="stat-n">$'+Math.round(valorActivo).toLocaleString('es-AR')+'</div><div class="stat-l">Comprometido activo</div></div>'+
+    '<div class="stat"><div class="stat-n blue">$'+Math.round(valorHistorico).toLocaleString('es-AR')+'</div><div class="stat-l">Historico total</div></div>';
 
   var tb=document.getElementById('tbody-proj');
   if(!list.length){tb.innerHTML='<tr><td colspan="8" class="empty">Sin proyectos registrados.</td></tr>';return;}
@@ -771,7 +778,7 @@ function renderProyectos(){
       '<td style="font-size:11px">'+(p.fechaInicio||'--')+'</td>'+
       '<td style="font-size:11px">'+(p.fechaEstFin||'--')+'</td>'+
       '<td style="text-align:center">'+nMat+(sobrantes>0&&p.estado==='Finalizado'?'<br><span style="font-size:10px;color:var(--amber)">'+sobrantes+' c/sobrante</span>':'')+'</td>'+
-      '<td style="text-align:right;font-size:11px">'+(valor>0?'$'+Math.round(valor).toLocaleString('es-AR'):'--')+'</td>'+
+      '<td style="text-align:right;font-size:12px;font-weight:700;white-space:nowrap">'+(valor>0?'$'+Math.round(valor).toLocaleString('es-AR'):'--')+'</td>'+
       '<td style="display:flex;gap:3px">'+
         '<button class="btn btn-sm btn-p" onclick="abrirProyecto('+p.id+')">Ver</button>'+
         '<button class="btn btn-sm" style="color:var(--red)" onclick="borrarProyecto('+p.id+')">X</button>'+
