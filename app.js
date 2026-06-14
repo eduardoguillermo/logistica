@@ -979,19 +979,50 @@ function abrirProyecto(id){
       body+='<div class="empty" style="margin-bottom:12px">Sin tareas registradas.</div>';
     } else {
       var hoy2=today();
+      // Avance ponderado por peso de tarea
+      var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
+      var avancePonderado=pesoTotal>0?(p.tareas||[]).reduce(function(a,t){
+        return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;
+      },0):null;
+      if(avancePonderado!==null){
+        var pctMO=Math.round(avancePonderado);
+        body+='<div style="background:var(--surface2);border-radius:var(--r);padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:12px">'+
+          '<div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Avance MO ponderado</div>'+
+          '<div style="flex:1;background:var(--surface3);border-radius:3px;height:8px;overflow:hidden">'+
+            '<div style="height:100%;background:'+(pctMO>=100?'var(--green)':pctMO>=60?'var(--blue)':'var(--primary)')+';width:'+pctMO+'%;transition:width .3s"></div>'+
+          '</div>'+
+          '<div style="font-size:14px;font-weight:700;color:'+(pctMO>=100?'var(--green)':'var(--text)')+'">'+pctMO+'%</div>'+
+          '<div style="font-size:10px;color:var(--text2)">('+Math.round(pesoTotal)+'% peso asignado)</div>'+
+        '</div>';
+      }
       body+='<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'+
         '<thead><tr style="background:var(--surface2)">'+
           '<th style="padding:5px 10px;font-size:10px">Tarea</th>'+
           '<th style="padding:5px 10px;font-size:10px;text-align:center">Vencimiento</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Peso</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Avance</th>'+
           '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
           (!esFin?'<th style="padding:5px 10px;font-size:10px"></th>':'')+
         '</tr></thead><tbody>'+
         (p.tareas||[]).map(function(t,ti){
           var estado=tareaEstado(t);
           var vencColor=estado==='Atrasado'?'var(--red)':estado==='OK'?'var(--green)':'var(--text2)';
+          var avR=parseFloat(t.avanceReal)||0;
+          var peso=parseFloat(t.peso)||0;
           return '<tr style="border-bottom:1px solid var(--border)'+(estado==='Atrasado'?';background:rgba(239,83,80,0.06)':'')+'">'+
             '<td style="padding:6px 10px;font-size:12px'+(estado==='OK'?';color:var(--text2);text-decoration:line-through':'')+'">'+t.desc+'</td>'+
             '<td style="padding:6px 10px;text-align:center;font-size:11px;color:'+vencColor+'">'+(t.fechaCumplimiento||'--')+'</td>'+
+            '<td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text2)">'+(peso>0?peso+'%':'--')+'</td>'+
+            '<td style="padding:6px 10px;min-width:80px">'+
+              (peso>0?
+                '<div style="display:flex;align-items:center;gap:4px">'+
+                  '<div style="flex:1;background:var(--surface3);border-radius:3px;height:5px;overflow:hidden">'+
+                    '<div style="height:100%;background:'+(avR>=100?'var(--green)':'var(--blue)')+';width:'+avR+'%"></div>'+
+                  '</div>'+
+                  '<span style="font-size:10px;color:var(--text2);white-space:nowrap">'+avR+'%</span>'+
+                '</div>':
+                '<span style="font-size:10px;color:var(--text3)">--</span>')+
+            '</td>'+
             '<td style="padding:6px 10px;text-align:center">'+tareaPill(estado)+'</td>'+
             (!esFin?'<td style="padding:6px 10px;display:flex;gap:3px">'+
               '<button class="btn btn-sm" onclick="editarTareaProyecto('+id+','+ti+')" title="Editar">✏️</button>'+
@@ -1104,11 +1135,15 @@ function abrirProyecto(id){
 function agregarTareaProyecto(id){
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
+  var pesoUsado=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
+  var pesoDisp=Math.max(0,100-pesoUsado);
   openModal('Nueva tarea',
     '<div class="fg2">'+
       '<div class="fg full"><label>Descripcion *</label><input id="nt-desc" placeholder="Descripcion de la tarea..."></div>'+
       '<div class="fg"><label>Fecha de cumplimiento</label><input id="nt-fecha" type="date"></div>'+
       '<div class="fg"><label>Costo MO ($)</label><input id="nt-costo" type="number" min="0" value="0" placeholder="Monto de mano de obra"></div>'+
+      '<div class="fg"><label>Peso en proyecto (%)<span style="font-size:10px;color:var(--text2);margin-left:6px">Disponible: '+pesoDisp+'%</span></label><input id="nt-peso" type="number" min="0" max="100" value="'+pesoDisp+'" placeholder="0"></div>'+
+      '<div class="fg"><label>Avance real (%)</label><input id="nt-avance" type="number" min="0" max="100" value="0" placeholder="0"></div>'+
     '</div>',
     function(){
       var desc=document.getElementById('nt-desc').value.trim();
@@ -1118,6 +1153,8 @@ function agregarTareaProyecto(id){
         desc:desc,
         fechaCumplimiento:document.getElementById('nt-fecha').value,
         costoMO:parseFloat(document.getElementById('nt-costo')?document.getElementById('nt-costo').value:0)||0,
+        peso:parseFloat(document.getElementById('nt-peso')?document.getElementById('nt-peso').value:0)||0,
+        avanceReal:parseFloat(document.getElementById('nt-avance')?document.getElementById('nt-avance').value:0)||0,
         estadoManual:null,
         fechaCreacion:today()
       });
@@ -1130,11 +1167,15 @@ function editarTareaProyecto(projId, idx){
   if(!p||!p.tareas[idx]) return;
   var t=p.tareas[idx];
   var estadoActual=tareaEstado(t);
+  var pesoUsado=(p.tareas||[]).reduce(function(a,tt,i){return i===idx?a:a+(parseFloat(tt.peso)||0);},0);
+  var pesoDisp=Math.max(0,100-pesoUsado);
   openModal('Editar tarea',
     '<div class="fg2">'+
       '<div class="fg full"><label>Descripcion *</label><input id="et-desc" value="'+t.desc.replace(/"/g,"'")+'" placeholder="Descripcion de la tarea..."></div>'+
       '<div class="fg"><label>Fecha de cumplimiento</label><input id="et-fecha" type="date" value="'+(t.fechaCumplimiento||'')+'"></div>'+
       '<div class="fg"><label>Costo MO ($)</label><input id="et-costo" type="number" min="0" value="'+(t.costoMO||0)+'"></div>'+
+      '<div class="fg"><label>Peso en proyecto (%)<span style="font-size:10px;color:var(--text2);margin-left:6px">Max disp: '+pesoDisp+'%</span></label><input id="et-peso" type="number" min="0" max="100" value="'+(t.peso||0)+'"></div>'+
+      '<div class="fg"><label>Avance real (%)</label><input id="et-avance" type="number" min="0" max="100" value="'+(t.avanceReal||0)+'"></div>'+
       '<div class="fg"><label>Estado (manual)</label>'+
         '<select id="et-estado" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
           '<option value="">Automatico ('+(estadoActual)+')</option>'+
@@ -1148,6 +1189,8 @@ function editarTareaProyecto(projId, idx){
       t.desc=desc;
       t.fechaCumplimiento=document.getElementById('et-fecha').value;
       t.costoMO=parseFloat(document.getElementById('et-costo')?document.getElementById('et-costo').value:0)||0;
+      t.peso=parseFloat(document.getElementById('et-peso')?document.getElementById('et-peso').value:0)||0;
+      t.avanceReal=Math.min(100,Math.max(0,parseFloat(document.getElementById('et-avance')?document.getElementById('et-avance').value:0)||0));
       var est=document.getElementById('et-estado').value;
       t.estadoManual=est||null;
       save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);return true;
@@ -1714,33 +1757,31 @@ function reporteProyectos(){
   var lista=(DB.proyectos||[]).slice().sort(function(a,b){return (b.numero||'').localeCompare(a.numero||'');});
   if(!lista.length){reporteContainer('Avance de proyectos','<div class="empty">Sin proyectos registrados.</div>');return;}
 
-  var activos=lista.filter(function(p){return p.estado==='En curso';}).length;
-  var planif=lista.filter(function(p){return p.estado==='Planificado';}).length;
-  var fin=lista.filter(function(p){return p.estado==='Finalizado';}).length;
-  var totalValor=lista.filter(function(p){return p.estado!=='Cancelado';}).reduce(function(a,p){
-    return a+(p.materiales||[]).reduce(function(b,m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
-      return b+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
-    },0);
-  },0);
+  var cntPlanif=lista.filter(function(p){return p.estado==='Planificado';}).length;
+  var cntActivos=lista.filter(function(p){return p.estado==='En curso';}).length;
+  var cntPausados=lista.filter(function(p){return p.estado==='Pausado';}).length;
+  var cntFin=lista.filter(function(p){return p.estado==='Finalizado';}).length;
 
-  var h='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'+
-    '<div class="stat"><div class="stat-n amber">'+planif+'</div><div class="stat-l">Planificados</div></div>'+
-    '<div class="stat"><div class="stat-n blue">'+activos+'</div><div class="stat-l">En curso</div></div>'+
-    '<div class="stat"><div class="stat-n green">'+fin+'</div><div class="stat-l">Finalizados</div></div>'+
-    '<div class="stat"><div class="stat-n">$'+Math.round(totalValor).toLocaleString('es-AR')+'</div><div class="stat-l">Valor total</div></div>'+
+  var h='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:16px">'+
+    '<div class="stat"><div class="stat-n amber">'+cntPlanif+'</div><div class="stat-l">Planificados</div></div>'+
+    '<div class="stat"><div class="stat-n blue">'+cntActivos+'</div><div class="stat-l">En curso</div></div>'+
+    (cntPausados?'<div class="stat"><div class="stat-n" style="color:#aaa">'+cntPausados+'</div><div class="stat-l">Pausados</div></div>':'')+
+    '<div class="stat"><div class="stat-n green">'+cntFin+'</div><div class="stat-l">Finalizados</div></div>'+
   '</div>';
 
   lista.forEach(function(p){
+    var esCancelado=p.estado==='Cancelado';
+    if(esCancelado) return; // Omitir cancelados
+
+    // Calculos generales
     var valor=(p.materiales||[]).reduce(function(a,m){
       var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
       return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
     },0);
-    var valorDev=(p.materiales||[]).reduce(function(a,m){
+    var valorPendOC=(p.materiales||[]).reduce(function(a,m){
       var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
-      return a+(parseFloat(m.devuelto)||0)*(parseFloat(comp.costo)||0);
+      return a+(parseFloat(m.cantPendienteOC)||0)*(parseFloat(comp.costo)||0);
     },0);
-    var sobrantes=(p.materiales||[]).filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
 
     // Barra de tiempo
     var pctTiempo=0;
@@ -1749,99 +1790,150 @@ function reporteProyectos(){
       var trans=new Date(hoy)-new Date(p.fechaInicio);
       pctTiempo=total>0?Math.min(100,Math.max(0,Math.round(trans/total*100))):0;
     }
-    var diasRestantes='';
-    if(p.fechaEstFin&&p.estado!=='Finalizado'&&p.estado!=='Cancelado'){
-      var diff=Math.round((new Date(p.fechaEstFin)-new Date())/86400000);
-      diasRestantes=diff<0?'<span style="color:var(--red);font-size:11px">'+Math.abs(diff)+' dias de atraso</span>':
-                           '<span style="color:var(--text2);font-size:11px">'+diff+' dias restantes</span>';
-    }
+    var diff=p.fechaEstFin&&p.estado!=='Finalizado'?Math.round((new Date(p.fechaEstFin)-new Date())/86400000):null;
 
-    h+='<div class="card" style="margin-bottom:10px">'+
-      '<div class="ch">'+
+    // Avance ponderado MO por tareas
+    var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
+    var avanceMO=pesoTotal>0?Math.round((p.tareas||[]).reduce(function(a,t){
+      return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;
+    },0)):null;
+
+    // Tareas stats
+    var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
+    var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+    var tareasTot=(p.tareas||[]).length;
+
+    // Reprogramaciones
+    var reprog=(p.historial||[]).filter(function(h){return h.accion&&h.accion.indexOf('reanudado')>-1;});
+
+    h+='<div class="card" style="margin-bottom:12px">'+
+      // HEADER
+      '<div class="ch" style="flex-wrap:wrap;gap:6px">'+
         '<div style="display:flex;align-items:center;gap:8px">'+
           '<span class="mono" style="font-size:11px;color:var(--primary)">'+p.numero+'</span>'+
-          '<strong>'+p.nombre+'</strong>'+
+          '<strong style="font-size:13px">'+p.nombre+'</strong>'+
         '</div>'+
-        '<div style="display:flex;gap:8px;align-items:center">'+
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
           proyEstadoPill(p.estado)+
-          (diasRestantes?diasRestantes:'')+
+          (p.estado==='Pausado'&&p.razonPausa?'<span style="background:#2a2000;border:1px solid #665500;color:#ffcc44;padding:2px 8px;border-radius:8px;font-size:10px">⏸ '+p.razonPausa+'</span>':'')+
         '</div>'+
       '</div>'+
       '<div class="card-body">'+
-        (p.descripcion?'<p style="font-size:12px;color:var(--text2);margin-bottom:10px">'+p.descripcion+'</p>':'')+
-        // Barra de tiempo
-        (p.fechaInicio&&p.fechaEstFin?
-          '<div style="margin-bottom:10px">'+
-            '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:4px">'+
-              '<span>'+p.fechaInicio+'</span>'+
-              '<span>'+pctTiempo+'% del tiempo</span>'+
-              '<span>'+(p.fechaFinReal||p.fechaEstFin)+'</span>'+
-            '</div>'+
-            '<div style="background:var(--surface2);border-radius:3px;height:6px;overflow:hidden">'+
-              '<div style="height:100%;background:'+(pctTiempo>=100?'var(--red)':'var(--blue)')+';width:'+pctTiempo+'%;transition:width .3s"></div>'+
-            '</div>'+
-          '</div>':'');
 
-    // Materiales
-    if((p.materiales||[]).length){
-      h+='<table style="width:100%;border-collapse:collapse;margin-bottom:8px">'+
-        '<thead><tr style="background:var(--surface2)">'+
-          '<th style="padding:4px 8px;font-size:10px">Componente</th>'+
-          '<th style="padding:4px 8px;font-size:10px;text-align:center">Cant.</th>'+
-          '<th style="padding:4px 8px;font-size:10px;text-align:center">Devuelto</th>'+
-          '<th style="padding:4px 8px;font-size:10px;text-align:center">En uso</th>'+
-          '<th style="padding:4px 8px;font-size:10px;text-align:right">Valor $</th>'+
-        '</tr></thead><tbody>'+
-        (p.materiales||[]).map(function(m){
-          var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
-          var enUso=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
-          var val=(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
-          return '<tr style="border-bottom:1px solid var(--border)">'+
-            '<td style="padding:4px 8px;font-size:11px">'+comp.desc+'</td>'+
-            '<td style="padding:4px 8px;text-align:center;font-size:11px">'+m.cant+' '+(comp.unidad||'')+'</td>'+
-            '<td style="padding:4px 8px;text-align:center;font-size:11px;color:var(--text2)">'+(m.devuelto||0)+'</td>'+
-            '<td style="padding:4px 8px;text-align:center;font-size:11px;font-weight:700;color:'+(enUso>0?'var(--blue)':'var(--text2)')+'">'+enUso+'</td>'+
-            '<td style="padding:4px 8px;text-align:right;font-size:11px">$'+Math.round(val).toLocaleString('es-AR')+'</td>'+
-          '</tr>';
-        }).join('')+
-        '</tbody></table>';
-      h+='<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:8px">'+
-        '<span>Valor comprometido: <strong style="color:var(--text)">$'+Math.round(valor).toLocaleString('es-AR')+'</strong></span>'+
-        (valorDev>0?'<span>Devuelto: <strong style="color:var(--green)">$'+Math.round(valorDev).toLocaleString('es-AR')+'</strong></span>':'')+
-        (sobrantes.length&&p.estado!=='Finalizado'?'<span style="color:var(--amber)">'+sobrantes.length+' item(s) con sobrante</span>':'')+
-      '</div>';
-    } else {
-      h+='<p style="font-size:12px;color:var(--text2)">Sin materiales registrados.</p>';
-    }
-
-    // Tareas en reporte
-    if((p.tareas||[]).length){
-      var ok=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
-      var atrasadas=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
-      var enCurso=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='En curso';}).length;
-      var canceladas=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Cancelado';}).length;
-      h+='<div style="margin-bottom:8px">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Tareas</div>'+
-        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
-          (ok?'<span style="background:var(--green);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+ok+' OK</span>':'')+
-          (atrasadas?'<span style="background:var(--red);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+atrasadas+' Atrasada'+(atrasadas>1?'s':'')+'</span>':'')+
-          (enCurso?'<span style="background:var(--blue);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+enCurso+' En curso</span>':'')+
-          (canceladas?'<span style="background:var(--text3);color:#fff;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700">'+canceladas+' Cancelada'+(canceladas>1?'s':'')+'</span>':'')+
+      // FILA 1: Fechas y estado materiales
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px">'+
+        '<div style="background:var(--surface2);border-radius:6px;padding:8px 10px">'+
+          '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Inicio</div>'+
+          '<div style="font-size:12px;font-weight:700;margin-top:2px">'+(p.fechaInicio||'--')+'</div>'+
+          '<div style="font-size:9px;color:var(--text2);margin-top:1px">'+(p.fechaInicio?'Real':'Planificado')+'</div>'+
         '</div>'+
-        '<table style="width:100%;border-collapse:collapse">'+
-        (p.tareas||[]).map(function(t){
-          var estado=tareaEstado(t);
-          var vc=estado==='Atrasado'?'var(--red)':estado==='OK'?'var(--green)':'var(--text2)';
-          return '<tr style="border-bottom:1px solid var(--border)'+(estado==='Atrasado'?';background:rgba(239,83,80,0.06)':'')+'">'+
-            '<td style="padding:4px 8px;font-size:11px'+(estado==='OK'?';color:var(--text2);text-decoration:line-through':'')+'">'+t.desc+'</td>'+
-            '<td style="padding:4px 8px;font-size:11px;color:'+vc+';text-align:center">'+(t.fechaCumplimiento||'--')+'</td>'+
-            '<td style="padding:4px 8px;text-align:center">'+tareaPill(estado)+'</td>'+
-          '</tr>';
-        }).join('')+
-        '</table></div>';
-    }
+        '<div style="background:var(--surface2);border-radius:6px;padding:8px 10px">'+
+          '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Fin estimado</div>'+
+          '<div style="font-size:12px;font-weight:700;margin-top:2px;color:'+(diff!==null&&diff<0?'var(--red)':'var(--text)')+'">'+(p.fechaEstFin||'--')+'</div>'+
+          (diff!==null?'<div style="font-size:9px;color:'+(diff<0?'var(--red)':'var(--text2)')+';margin-top:1px">'+(diff<0?Math.abs(diff)+' dias atrasado':diff+' dias restantes')+'</div>':'')+''+
+        '</div>'+
+        (p.fechaFinReal?'<div style="background:#0a2a0a;border:1px solid var(--green);border-radius:6px;padding:8px 10px">'+
+          '<div style="font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:.05em">Fin real</div>'+
+          '<div style="font-size:12px;font-weight:700;color:var(--green);margin-top:2px">'+p.fechaFinReal+'</div>'+
+        '</div>':'')+
+        // Estado materiales (solo Planificado/En curso)
+        (p.estado==='Planificado'||p.estado==='En curso'?
+          '<div style="background:var(--surface2);border-radius:6px;padding:8px 10px">'+
+            '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Materiales</div>'+
+            '<div style="font-size:11px;font-weight:700;margin-top:4px">'+
+              (p.estado==='Planificado'?
+                '<span style="color:#ce93d8">'+(p.materiales||[]).filter(function(m){return m.reservado;}).length+' reservados</span>':
+                '<span style="color:var(--green)">'+(p.materiales||[]).filter(function(m){return !m.cantPendienteOC||m.cantPendienteOC<=0;}).length+' entregados</span>')+
+            '</div>'+
+            (valorPendOC>0?'<div style="font-size:9px;color:var(--amber);margin-top:2px">$'+Math.round(valorPendOC).toLocaleString('es-AR')+' pend. OC</div>':'')+
+          '</div>':'')+''+
+      '</div>'+
 
-    h+='</div></div>';
+      // FILA 2: Barras de avance
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
+        // Avance planificado (tiempo)
+        '<div style="background:var(--surface2);border-radius:6px;padding:8px 10px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+            '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Avance tiempo</div>'+
+            '<div style="font-size:13px;font-weight:700;color:'+(pctTiempo>=100?'var(--red)':'var(--blue)')+'">'+pctTiempo+'%</div>'+
+          '</div>'+
+          '<div style="background:var(--surface3);border-radius:3px;height:6px;overflow:hidden">'+
+            '<div style="height:100%;background:'+(pctTiempo>=100?'var(--red)':'var(--blue)')+';width:'+pctTiempo+'%"></div>'+
+          '</div>'+
+        '</div>'+
+        // Avance real MO
+        '<div style="background:var(--surface2);border-radius:6px;padding:8px 10px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+            '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Avance MO</div>'+
+            '<div style="font-size:13px;font-weight:700;color:'+(avanceMO===null?'var(--text3)':avanceMO>=100?'var(--green)':'var(--text)')+'">'+
+              (avanceMO===null?'--':avanceMO+'%')+
+            '</div>'+
+          '</div>'+
+          (avanceMO!==null?
+            '<div style="background:var(--surface3);border-radius:3px;height:6px;overflow:hidden">'+
+              '<div style="height:100%;background:'+(avanceMO>=100?'var(--green)':avanceMO>=60?'var(--blue)':'var(--primary)')+';width:'+avanceMO+'%"></div>'+
+            '</div>':
+            '<div style="font-size:10px;color:var(--text3)">Sin tareas con peso asignado</div>')+
+          (pesoTotal>0&&pesoTotal<100?'<div style="font-size:9px;color:var(--amber);margin-top:3px">'+Math.round(pesoTotal)+'% peso asignado (falta '+(100-Math.round(pesoTotal))+'%)</div>':'')+
+        '</div>'+
+        // Avance manual global
+        '<div style="background:var(--surface2);border-radius:6px;padding:8px 10px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+            '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">Avance global (manual)</div>'+
+            '<div style="font-size:13px;font-weight:700">'+(p.pctAvance||0)+'%</div>'+
+          '</div>'+
+          '<div style="background:var(--surface3);border-radius:3px;height:6px;overflow:hidden">'+
+            '<div style="height:100%;background:var(--primary);width:'+(p.pctAvance||0)+'%"></div>'+
+          '</div>'+
+        '</div>'+
+        // Tareas resumen
+        '<div style="background:var(--surface2);border-radius:6px;padding:8px 10px">'+
+          '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Tareas</div>'+
+          (tareasTot?
+            '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+              (tareasOK?'<span style="background:var(--green);color:#fff;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">'+tareasOK+' OK</span>':'')+
+              (tareasAt?'<span style="background:var(--red);color:#fff;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">'+tareasAt+' atrasada'+(tareasAt>1?'s':'')+'</span>':'')+
+              '<span style="font-size:10px;color:var(--text2)">'+tareasTot+' total</span>'+
+            '</div>':
+            '<div style="font-size:10px;color:var(--text3)">Sin tareas</div>')+
+        '</div>'+
+      '</div>'+
+
+      // REPROGRAMACIONES
+      (reprog.length?
+        '<div style="background:#1a0a2a;border:1px solid #3a1a5a;border-radius:6px;padding:8px 10px;margin-bottom:10px">'+
+          '<div style="font-size:9px;color:#ce93d8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Reprogramaciones ('+reprog.length+')</div>'+
+          reprog.map(function(h){
+            return '<div style="font-size:10px;color:var(--text2);margin-bottom:2px">'+h.fecha+' -- '+h.accion+'</div>';
+          }).join('')+
+        '</div>':'')+
+
+      // MATERIALES (tabla compacta)
+      ((p.materiales||[]).length?
+        '<div style="font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Materiales</div>'+
+        '<table style="width:100%;border-collapse:collapse;margin-bottom:10px">'+
+          '<thead><tr style="background:var(--surface2)">'+
+            '<th style="padding:3px 8px;font-size:10px">Componente</th>'+
+            '<th style="padding:3px 8px;font-size:10px;text-align:center">Cant.</th>'+
+            '<th style="padding:3px 8px;font-size:10px;text-align:center">Estado</th>'+
+            '<th style="padding:3px 8px;font-size:10px;text-align:right">Valor $</th>'+
+          '</tr></thead><tbody>'+
+          (p.materiales||[]).map(function(m){
+            var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
+            var val=(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+            var estadoMat=m.reservado?'<span style="color:#ce93d8;font-size:10px">Reservado</span>':
+              (parseFloat(m.cantPendienteOC)||0)>0?'<span style="color:var(--amber);font-size:10px">Parcial (OC)</span>':
+              '<span style="color:var(--green);font-size:10px">Entregado</span>';
+            return '<tr style="border-bottom:1px solid var(--border)">'+
+              '<td style="padding:3px 8px;font-size:11px">'+comp.desc+'</td>'+
+              '<td style="padding:3px 8px;text-align:center;font-size:11px">'+m.cant+' '+(comp.unidad||'')+'</td>'+
+              '<td style="padding:3px 8px;text-align:center">'+estadoMat+'</td>'+
+              '<td style="padding:3px 8px;text-align:right;font-size:11px">$'+Math.round(val).toLocaleString('es-AR')+'</td>'+
+            '</tr>';
+          }).join('')+
+          '</tbody></table>':'')+
+
+      '</div></div>';
   });
 
   reporteContainer('Avance de proyectos', h);
