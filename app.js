@@ -187,24 +187,21 @@ function renderStock(){
     return _stockSort.dir*va.localeCompare(vb);
   });
 
-  // Stats basados en la lista filtrada
-  var total = list.length;
-  var criticos = list.filter(function(c){return stockActual(c.id)<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;}).length;
-  var sinStock = list.filter(function(c){return stockActual(c.id)<=0;}).length;
-  var valorTotal = list.reduce(function(a,c){return a+stockActual(c.id)*(parseFloat(c.costo)||0);},0);
-  var valorUSD   = list.reduce(function(a,c){
+  var total = DB.componentes.length;
+  var criticos = DB.componentes.filter(function(c){return stockActual(c.id)<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;}).length;
+  var sinStock = DB.componentes.filter(function(c){return stockActual(c.id)<=0;}).length;
+  var valorTotal = DB.componentes.reduce(function(a,c){return a+stockActual(c.id)*(parseFloat(c.costo)||0);},0);
+  var valorUSD   = DB.componentes.reduce(function(a,c){
     var cu=parseFloat(c.costo_usd||c.costoUSD)||(tc>1?(parseFloat(c.costo)||0)/tc:0);
     return a+stockActual(c.id)*cu;
   },0);
-  var filtrado = list.length < DB.componentes.length;
-  var labelComp = filtrado ? total+' de '+DB.componentes.length+' comp.' : total+' componentes';
 
   document.getElementById('stock-stats').innerHTML =
-    '<div class="stat"><div class="stat-n">'+(filtrado?'<span style="font-size:13px">'+total+'</span><span style="font-size:10px;color:var(--text2)"> / '+DB.componentes.length+'</span>':total)+'</div><div class="stat-l">'+( filtrado?'Filtrados':'Componentes')+'</div></div>'+
+    '<div class="stat"><div class="stat-n">'+total+'</div><div class="stat-l">Componentes</div></div>'+
     '<div class="stat"><div class="stat-n red">'+sinStock+'</div><div class="stat-l">Sin stock</div></div>'+
     '<div class="stat"><div class="stat-n amber">'+criticos+'</div><div class="stat-l">Stock critico</div></div>'+
-    '<div class="stat"><div class="stat-n blue">$'+Math.round(valorTotal).toLocaleString('es-AR')+'</div><div class="stat-l">Valor $'+(filtrado?' (filtro)':'')+'</div></div>'+
-    '<div class="stat"><div class="stat-n blue">U$S '+Math.round(valorUSD).toLocaleString('es-AR')+'</div><div class="stat-l">Valor U$S'+(filtrado?' (filtro)':'')+'</div></div>';
+    '<div class="stat"><div class="stat-n blue">$'+Math.round(valorTotal).toLocaleString('es-AR')+'</div><div class="stat-l">Valor $</div></div>'+
+    '<div class="stat"><div class="stat-n blue">U$S '+Math.round(valorUSD).toLocaleString('es-AR')+'</div><div class="stat-l">Valor U$S</div></div>';
 
   var scols = {codigo:'Codigo',desc:'Descripcion',categoria:'Categoria',cant:'Cantidad',area:'Area',ubicacion:'Cajonera / Cajon'};
   Object.keys(scols).forEach(function(col){
@@ -1674,7 +1671,13 @@ function renderProveedores(){
   var h='<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><button class="btn btn-p" onclick="modalProveedor(-1)">+ Nuevo proveedor</button></div>';
   if(!DB.proveedores.length){h+='<div class="empty">Sin proveedores registrados.</div>';el.innerHTML=h;return;}
   h+='<div class="card"><div class="twrap"><table><thead><tr><th>Empresa</th><th>Contacto</th><th>Telefono</th><th>Email</th><th>Rubro</th><th>Condiciones</th><th></th></tr></thead><tbody>';
-  DB.proveedores.forEach(function(p,i){
+  var provSorted=[...DB.proveedores].sort(function(a,b){
+    var ea=(a.empresa||'').toLowerCase(); var eb=(b.empresa||'').toLowerCase();
+    if(ea!==eb) return ea.localeCompare(eb,'es');
+    return (a.rubro||'').toLowerCase().localeCompare((b.rubro||'').toLowerCase(),'es');
+  });
+  provSorted.forEach(function(p,i){
+    var i=DB.proveedores.indexOf(p);
     h+='<tr><td><strong>'+p.empresa+'</strong></td><td>'+(p.contacto||'--')+'</td><td>'+(p.tel||'--')+'</td><td>'+(p.email||'--')+'</td><td>'+(p.rubro||'--')+'</td><td style="font-size:11px">'+(p.condiciones||'--')+'</td>'+
       '<td style="display:flex;gap:4px"><button class="btn btn-sm" onclick="modalProveedor('+i+')">Ed.</button><button class="btn btn-sm" style="color:var(--red)" onclick="borrarProveedor('+p.id+')">X</button></td></tr>';
   });
