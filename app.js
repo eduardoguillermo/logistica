@@ -3136,6 +3136,90 @@ function exportarJSON(){
   var a=document.createElement('a');a.href=url;a.download='vss_logistica_backup_'+today()+'.json';a.click();
   URL.revokeObjectURL(url);
 }
+
+function exportarExcel(){
+  if(typeof XLSX==='undefined'){alert('SheetJS no disponible. Recarga la app e intenta de nuevo.');return;}
+  var wb=XLSX.utils.book_new();
+  var tc=(DB.config&&DB.config.tipoCambio)||1;
+
+  // HOJA 1: STOCK
+  var stockRows=[['Codigo','Descripcion','Categoria','Unidad','Stock','Minimo','Costo $','Costo U$S','Valor total $','Cajonera','N° Cajon','Proveedor','Estado']];
+  DB.componentes.forEach(function(c){
+    var qty=stockActual(c.id);
+    var costo=parseFloat(c.costo)||0;
+    stockRows.push([
+      c.codigo,c.desc,c.categoria,c.unidad,qty,
+      parseFloat(c.min)||0,costo,
+      parseFloat(c.costo_usd)||(tc>1?Math.round(costo/tc):0),
+      qty*costo,
+      c.ubicacion||'',c.nroCajon||'',
+      c.proveedor||'',c.estadoMat||'N'
+    ]);
+  });
+  var wsStock=XLSX.utils.aoa_to_sheet(stockRows);
+  wsStock['!cols']=[{wch:14},{wch:35},{wch:16},{wch:8},{wch:8},{wch:8},{wch:12},{wch:12},{wch:14},{wch:14},{wch:10},{wch:20},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,wsStock,'Stock');
+
+  // HOJA 2: MOVIMIENTOS
+  var movRows=[['Fecha','Componente','Codigo','Tipo','Cantidad','Unidad','Origen','Nota','Referencia']];
+  var todosMovs=[...(DB.movimientosArchivados||[]),...DB.movimientos]
+    .sort(function(a,b){return (b.fecha||'').localeCompare(a.fecha||'');});
+  todosMovs.forEach(function(m){
+    var comp=DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{desc:'?',codigo:'',unidad:''};
+    movRows.push([
+      m.fecha,comp.desc,comp.codigo,m.tipo,
+      parseFloat(m.cant)||0,comp.unidad||'',
+      m.origen||'',m.nota||'',m.ref||''
+    ]);
+  });
+  var wsMov=XLSX.utils.aoa_to_sheet(movRows);
+  wsMov['!cols']=[{wch:12},{wch:35},{wch:14},{wch:18},{wch:10},{wch:8},{wch:16},{wch:30},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,wsMov,'Movimientos');
+
+  // HOJA 3: PROYECTOS
+  var proyRows=[['N°','Nombre','Estado','Prioridad','Fecha inicio','Fecha est. fin','Fecha fin real','Presupuesto $','Costo materiales $','MO planif. $','MO ejecutada $','Total erogado $','Dif. presupuesto $','% Avance MO','Tareas total','Tareas OK','Tareas atrasadas']];
+  (DB.proyectos||[]).forEach(function(p){
+    var matCosto=(p.materiales||[]).reduce(function(a,m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{costo:0};
+      return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+    },0);
+    var moEstim=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+    var moReal=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+    var totalErog=matCosto+moReal;
+    var presup=parseFloat(p.presupuesto)||0;
+    var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
+    var avMO=pesoTotal>0?Math.round((p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;},0)):0;
+    var tOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
+    var tAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+    proyRows.push([
+      p.numero,p.nombre,p.estado,p.prioridad||'',
+      p.fechaInicio||'',p.fechaEstFin||'',p.fechaFinReal||'',
+      presup,Math.round(matCosto),Math.round(moEstim),Math.round(moReal),
+      Math.round(totalErog),presup?Math.round(presup-totalErog):0,
+      avMO,(p.tareas||[]).length,tOK,tAt
+    ]);
+  });
+  var wsProy=XLSX.utils.aoa_to_sheet(proyRows);
+  wsProy['!cols']=[{wch:10},{wch:35},{wch:12},{wch:10},{wch:12},{wch:14},{wch:14},{wch:14},{wch:16},{wch:14},{wch:14},{wch:14},{wch:16},{wch:12},{wch:12},{wch:10},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,wsProy,'Proyectos');
+
+  // HOJA 4: TAREAS
+  var tareasRows=[['Proyecto N°','Proyecto','Tarea','Estado','Fecha venc.','Costo MO $','Peso %','Avance %']];
+  (DB.proyectos||[]).forEach(function(p){
+    (p.tareas||[]).forEach(function(t){
+      tareasRows.push([
+        p.numero,p.nombre,t.desc,tareaEstado(t),
+        t.fechaCumplimiento||'',parseFloat(t.costoMO)||0,
+        parseFloat(t.peso)||0,parseFloat(t.avanceReal)||0
+      ]);
+    });
+  });
+  var tareas=XLSX.utils.aoa_to_sheet(tareasRows);
+  tareas['!cols']=[{wch:10},{wch:30},{wch:40},{wch:12},{wch:12},{wch:12},{wch:8},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,tareas,'Tareas');
+
+  XLSX.writeFile(wb,'vss_logistica_'+today()+'.xlsx');
+}
 function exportarADrive(){
   var json=JSON.stringify(DB,null,2);
   var blob=new Blob([json],{type:'application/json'});
