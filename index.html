@@ -298,13 +298,13 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
     <!-- PROYECTOS -->
     <div class="panel" id="panel-proyectos">
       <div id="proj-stats" class="stats"></div>
-      <div class="sbar">
-        <input type="text" id="q-proj" placeholder="🔍 Buscar proyecto..." oninput="renderProyectos()">
-        <select id="proj-estado-filter" onchange="renderProyectos()">
-          <option value="">Todos los estados</option>
-          <option>Planificado</option><option>En curso</option>
-          <option>Pausado</option><option>Finalizado</option><option>Cancelado</option>
-        </select>
+      <div class="sbar" style="flex-wrap:wrap;gap:8px">
+        <input type="text" id="q-proj" placeholder="🔍 Buscar proyecto..." oninput="renderProyectos()" style="flex:1;min-width:140px">
+        <div style="display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0">
+          <button id="vbtn-activos" onclick="setVistaProyectos('activos')" style="padding:6px 14px;font-size:12px;border:none;cursor:pointer;background:var(--primary);color:#fff;font-weight:700">Activos</button>
+          <button id="vbtn-finalizados" onclick="setVistaProyectos('finalizados')" style="padding:6px 14px;font-size:12px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text2)">Finalizados</button>
+          <button id="vbtn-todos" onclick="setVistaProyectos('todos')" style="padding:6px 14px;font-size:12px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text2)">Todos</button>
+        </div>
         <button class="btn btn-p" onclick="modalNuevoProyecto()">➕ Nuevo proyecto</button>
       </div>
       <div class="card"><div class="twrap">
