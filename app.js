@@ -3109,8 +3109,17 @@ function alertaTareasProximas(){
   var hoy = today();
   var MARGEN = 5; // dias habiles
   var items = [];
+  var proyPorIniciar = [];
 
   (DB.proyectos||[]).forEach(function(p){
+    // Proyectos planificados proximos a iniciar (1 dia habil)
+    if(p.estado==='Planificado' && p.fechaInicio){
+      var dhInicio = diasHabilesEntre(hoy, p.fechaInicio);
+      var yaVencioInicio = p.fechaInicio <= hoy;
+      if(yaVencioInicio || dhInicio <= 1){
+        proyPorIniciar.push({proy: p, dh: dhInicio, vencida: yaVencioInicio});
+      }
+    }
     if(p.estado==='Cancelado'||p.estado==='Finalizado') return;
     (p.tareas||[]).forEach(function(t){
       if(!t.fechaCumplimiento) return;
@@ -3118,47 +3127,74 @@ function alertaTareasProximas(){
       var dh = diasHabilesEntre(hoy, t.fechaCumplimiento);
       var vencida = t.fechaCumplimiento < hoy;
       if(vencida || dh <= MARGEN){
-        items.push({
-          proy: p,
-          tarea: t,
-          dh: dh,
-          vencida: vencida
-        });
+        items.push({proy: p, tarea: t, dh: dh, vencida: vencida});
       }
     });
   });
 
-  if(!items.length) return; // nada que informar
+  if(!items.length && !proyPorIniciar.length) return;
 
-  // Ordenar: vencidas primero, luego por fecha
+  // Ordenar tareas: vencidas primero, luego por fecha
   items.sort(function(a,b){
     if(a.vencida && !b.vencida) return -1;
     if(!a.vencida && b.vencida) return 1;
     return (a.tarea.fechaCumplimiento||'').localeCompare(b.tarea.fechaCumplimiento||'');
   });
 
-  var html =
-    '<div style="font-size:11px;color:var(--text2);margin-bottom:12px">Tareas que vencen en los proximos <strong>5 dias habiles</strong> o ya vencidas:</div>'+
-    '<table style="width:100%;border-collapse:collapse">'+
-      '<thead><tr style="background:var(--surface2)">'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:left">Proyecto</th>'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:left">Tarea</th>'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:center">Vencimiento</th>'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
-      '</tr></thead><tbody>'+
-      items.map(function(it){
-        var color = it.vencida ? 'var(--red)' : it.dh <= 2 ? 'var(--amber)' : 'var(--text2)';
-        var badge = it.vencida ?
-          '<span style="background:#3a0000;color:#ef5350;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">Vencida</span>' :
-          '<span style="background:#2a1a00;color:#ffb74d;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">'+it.dh+' d. habil'+(it.dh!==1?'es':'')+'</span>';
-        return '<tr style="border-bottom:1px solid var(--border)'+(it.vencida?';background:rgba(239,83,80,0.05)':'')+'">' +
-          '<td style="padding:6px 10px;font-size:11px;color:var(--primary);cursor:pointer" onclick="cerrarModal();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+it.proy.id+');},200)">'+it.proy.numero+'<br><span style="font-size:10px;color:var(--text2)">'+it.proy.nombre+'</span></td>'+
-          '<td style="padding:6px 10px;font-size:11px">'+it.tarea.desc+'</td>'+
-          '<td style="padding:6px 10px;text-align:center;font-size:11px;color:'+color+'">'+it.tarea.fechaCumplimiento+'</td>'+
-          '<td style="padding:6px 10px;text-align:center">'+badge+'</td>'+
-        '</tr>';
-      }).join('')+
-      '</tbody></table>';
+  var html = '';
 
-  openModal('⚠️ Tareas proximas a vencer ('+items.length+')', html, null, true);
+  // Seccion proyectos por iniciar
+  if(proyPorIniciar.length){
+    html += '<div style="margin-bottom:14px">'+
+      '<div style="font-size:10px;color:#4fc3f7;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Proyectos por iniciar</div>'+
+      '<table style="width:100%;border-collapse:collapse">'+
+        '<thead><tr style="background:var(--surface2)">'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:left">Proyecto</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Fecha inicio</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
+        '</tr></thead><tbody>'+
+        proyPorIniciar.map(function(it){
+          var badge = it.vencida ?
+            '<span style="background:#3a0000;color:#ef5350;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">Inicio vencido</span>' :
+            '<span style="background:#0a1a3a;color:#4fc3f7;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">'+(it.dh===0?'Hoy':'1 dia habil')+'</span>';
+          return '<tr style="border-bottom:1px solid var(--border)'+(it.vencida?';background:rgba(239,83,80,0.05)':';background:rgba(79,195,247,0.04)')+'">' +
+            '<td style="padding:6px 10px;font-size:11px;color:var(--primary);cursor:pointer" onclick="cerrarModal();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+it.proy.id+');},200)">'+it.proy.numero+'<br><span style="font-size:10px;color:var(--text2)">'+it.proy.nombre+'</span></td>'+
+            '<td style="padding:6px 10px;text-align:center;font-size:11px;color:'+(it.vencida?'var(--red)':'#4fc3f7')+'">'+it.proy.fechaInicio+'</td>'+
+            '<td style="padding:6px 10px;text-align:center">'+badge+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>'+
+    '</div>';
+  }
+
+  // Seccion tareas proximas
+  if(items.length){
+    html += '<div>'+
+      '<div style="font-size:10px;color:var(--amber);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Tareas proximas a vencer</div>'+
+      '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Margen: <strong>5 dias habiles</strong></div>'+
+      '<table style="width:100%;border-collapse:collapse">'+
+        '<thead><tr style="background:var(--surface2)">'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:left">Proyecto</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:left">Tarea</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Vencimiento</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
+        '</tr></thead><tbody>'+
+        items.map(function(it){
+          var color = it.vencida ? 'var(--red)' : it.dh <= 2 ? 'var(--amber)' : 'var(--text2)';
+          var badge = it.vencida ?
+            '<span style="background:#3a0000;color:#ef5350;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">Vencida</span>' :
+            '<span style="background:#2a1a00;color:#ffb74d;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">'+it.dh+' d. habil'+(it.dh!==1?'es':'')+'</span>';
+          return '<tr style="border-bottom:1px solid var(--border)'+(it.vencida?';background:rgba(239,83,80,0.05)':'')+'">' +
+            '<td style="padding:6px 10px;font-size:11px;color:var(--primary);cursor:pointer" onclick="cerrarModal();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+it.proy.id+');},200)">'+it.proy.numero+'<br><span style="font-size:10px;color:var(--text2)">'+it.proy.nombre+'</span></td>'+
+            '<td style="padding:6px 10px;font-size:11px">'+it.tarea.desc+'</td>'+
+            '<td style="padding:6px 10px;text-align:center;font-size:11px;color:'+color+'">'+it.tarea.fechaCumplimiento+'</td>'+
+            '<td style="padding:6px 10px;text-align:center">'+badge+'</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>'+
+    '</div>';
+  }
+
+  var total = items.length + proyPorIniciar.length;
+  openModal('⚠️ Alertas de agenda ('+total+')', html, null, true);
 }
