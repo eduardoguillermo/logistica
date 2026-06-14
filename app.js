@@ -4017,29 +4017,95 @@ function renderDashboard(){
     h += '</div></div>';
   }
 
-  // Ultimos movimientos
+  // Control de proyectos
+  var hoy2=today();
+  var proyControl=(DB.proyectos||[]).filter(function(p){return p.estado==='En curso'||p.estado==='Pausado';});
+
   h += '<div class="card" style="margin-top:14px">'+
-    '<div class="ch"><div class="ct">Ultimos movimientos</div><button class="btn btn-sm" onclick="goTo(\'movimientos\')">Ver todos</button></div>'+
+    '<div class="ch"><div class="ct">Control de proyectos</div><button class="btn btn-sm" onclick="goTo(\'proyectos\')">Ver todos</button></div>'+
     '<div class="card-body">';
-  if(!ultMovs.length){
-    h += '<div class="empty">Sin movimientos.</div>';
+
+  if(!proyControl.length){
+    h += '<div class="empty">Sin proyectos activos.</div>';
   } else {
-    h += '<table style="width:100%;border-collapse:collapse">';
-    ultMovs.forEach(function(m){
-      var comp=DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{desc:'?',unidad:''};
-      var esEnt=m.tipo==='Entrada';
-      var esReserva=m.tipo==='Reserva';
-      var color=esEnt?'var(--green)':esReserva?'#ce93d8':'var(--red)';
-      var signo=esEnt?'+':'-';
-      h += '<tr style="border-bottom:1px solid var(--border)">'+
-        '<td style="padding:5px 0;font-size:11px;color:var(--text2)">'+m.fecha+'</td>'+
-        '<td style="padding:5px 8px;font-size:11px">'+comp.desc+'</td>'+
-        '<td style="padding:5px 0;font-size:11px;font-weight:700;color:'+color+'">'+
-          signo+(m.cant||0)+' '+(comp.unidad||'')+'</td>'+
-        '<td style="padding:5px 0;font-size:10px;color:var(--text2)">'+(m.nota||m.origen||'')+'</td>'+
+    h += '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="background:var(--surface2)">'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:left">Proyecto</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Avance físico</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Avance tiempo</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Semáforo</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Días restantes</th>'+
+      '</tr></thead><tbody>';
+
+    proyControl.forEach(function(p){
+      // Avance fisico: MO ponderada por tareas OK
+      var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
+      var avFisico=pesoTotal>0?Math.round((p.tareas||[]).reduce(function(a,t){
+        return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;
+      },0)):null;
+      // Avance programado: % tiempo transcurrido
+      var avTiempo=null;
+      var diasRestantes=null;
+      if(p.fechaInicio&&p.fechaEstFin){
+        var ini=new Date(p.fechaInicio);
+        var fin=new Date(p.fechaEstFin);
+        var hoyD=new Date(hoy2);
+        var total=fin-ini;
+        var trans=hoyD-ini;
+        avTiempo=total>0?Math.min(100,Math.max(0,Math.round(trans/total*100))):0;
+        diasRestantes=Math.round((fin-hoyD)/86400000);
+      }
+      // Semaforo: fisico vs tiempo
+      var semaforo='⚪';var semaforoColor='var(--text3)';var semaforoLabel='Sin datos';
+      if(avFisico!==null&&avTiempo!==null){
+        var diff=avFisico-avTiempo;
+        if(diff>=5){semaforo='🟢';semaforoColor='var(--green)';semaforoLabel='Adelantado';}
+        else if(diff>=-10){semaforo='🟡';semaforoColor='var(--amber)';semaforoLabel='En línea';}
+        else{semaforo='🔴';semaforoColor='var(--red)';semaforoLabel='Atrasado';}
+      }
+      h += '<tr style="border-bottom:1px solid var(--border)'+(p.estado==='Pausado'?';opacity:.7':'')+'">'+
+        '<td style="padding:7px 10px;font-size:12px;cursor:pointer;color:var(--primary)" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+
+          '<strong>'+p.nombre+'</strong>'+
+          '<div style="font-size:10px;color:var(--text2)">'+p.numero+'</div>'+
+        '</td>'+
+        '<td style="padding:7px 10px;text-align:center">'+proyEstadoPill(p.estado)+'</td>'+
+        // Avance fisico
+        '<td style="padding:7px 10px;min-width:100px">'+
+          (avFisico!==null?
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              '<div style="flex:1;background:var(--surface3);border-radius:3px;height:7px;overflow:hidden">'+
+                '<div style="height:100%;background:'+(avFisico>=100?'var(--green)':'var(--blue)')+';width:'+avFisico+'%"></div>'+
+              '</div>'+
+              '<span style="font-size:11px;font-weight:700;color:'+(avFisico>=100?'var(--green)':'var(--text)')+'">'+avFisico+'%</span>'+
+            '</div>':
+            '<span style="font-size:10px;color:var(--text3)">Sin tareas ponderadas</span>')+
+        '</td>'+
+        // Avance tiempo
+        '<td style="padding:7px 10px;min-width:100px">'+
+          (avTiempo!==null?
+            '<div style="display:flex;align-items:center;gap:6px">'+
+              '<div style="flex:1;background:var(--surface3);border-radius:3px;height:7px;overflow:hidden">'+
+                '<div style="height:100%;background:'+(avTiempo>=100?'var(--red)':'#555')+';width:'+avTiempo+'%"></div>'+
+              '</div>'+
+              '<span style="font-size:11px;font-weight:700;color:'+(avTiempo>=100?'var(--red)':'var(--text2)')+'">'+avTiempo+'%</span>'+
+            '</div>':
+            '<span style="font-size:10px;color:var(--text3)">Sin fechas</span>')+
+        '</td>'+
+        // Semaforo
+        '<td style="padding:7px 10px;text-align:center">'+
+          '<div style="font-size:18px">'+semaforo+'</div>'+
+          '<div style="font-size:10px;color:'+semaforoColor+';font-weight:700">'+semaforoLabel+'</div>'+
+        '</td>'+
+        // Dias restantes
+        '<td style="padding:7px 10px;text-align:center;font-size:12px;font-weight:700;color:'+
+          (diasRestantes===null?'var(--text3)':diasRestantes<0?'var(--red)':diasRestantes<=7?'var(--amber)':'var(--text)')+'">'+
+          (diasRestantes===null?'--':diasRestantes<0?Math.abs(diasRestantes)+' días vencido':diasRestantes+' días')+
+        '</td>'+
       '</tr>';
     });
-    h += '</table>';
+
+    h += '</tbody></table>';
   }
   h += '</div></div>';
 
