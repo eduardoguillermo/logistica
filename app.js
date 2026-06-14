@@ -1372,71 +1372,6 @@ function guardarNotaProyecto(id){
   setTimeout(function(){abrirProyecto(id);},100);
 }
 
-function initAmCompDropdown(comps){
-  var inp=document.getElementById('am-comp-input');
-  var list=document.getElementById('am-comp-list');
-  var hidden=document.getElementById('am-comp');
-  if(!inp||!list||!hidden) return;
-
-  function renderList(filter){
-    var q=(filter||'').toLowerCase().trim();
-    var filtered=q?comps.filter(function(c){
-      return (c.codigo||'').toLowerCase().indexOf(q)>=0||(c.desc||'').toLowerCase().indexOf(q)>=0;
-    }):comps;
-    if(!filtered.length){
-      list.innerHTML='<div style="padding:8px 10px;color:var(--muted);font-size:12px">Sin resultados</div>';
-    } else {
-      list.innerHTML=filtered.slice(0,80).map(function(c){
-        var stock=stockActual(c.id);
-        var label=(c.codigo||'')+' -- '+(c.desc||'');
-        return '<div data-id="'+c.id+'" tabindex="0" style="padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)" '+
-          'onmousedown="event.preventDefault()" '+
-          'onclick="window._amSelectComp('+c.id+',this.dataset.label)" data-label="'+label.replace(/"/g,'&quot;')+'">'+
-          '[Stock: '+stock+'] '+label+'</div>';
-      }).join('');
-    }
-    list.style.display='block';
-  }
-
-  window._amSelectComp=function(id,label){
-    hidden.value=id;
-    inp.value=label;
-    list.style.display='none';
-  };
-
-  inp.addEventListener('input',function(){
-    hidden.value='';
-    renderList(inp.value);
-  });
-  inp.addEventListener('focus',function(){
-    renderList(inp.value);
-  });
-  inp.addEventListener('keydown',function(e){
-    if(e.key==='Escape'){list.style.display='none';}
-    if(e.key==='ArrowDown'){
-      var items=list.querySelectorAll('[data-id]');
-      if(items.length){items[0].focus();}
-    }
-  });
-  list.addEventListener('keydown',function(e){
-    var focused=document.activeElement;
-    if(e.key==='ArrowDown'&&focused.nextElementSibling){focused.nextElementSibling.focus();}
-    if(e.key==='ArrowUp'){
-      if(focused.previousElementSibling) focused.previousElementSibling.focus();
-      else inp.focus();
-    }
-    if(e.key==='Enter'&&focused.dataset&&focused.dataset.id){focused.click();}
-    if(e.key==='Escape'){list.style.display='none';inp.focus();}
-  });
-  document.addEventListener('click',function handler(e){
-    var wrap=document.getElementById('am-comp-wrap');
-    if(!wrap||!wrap.contains(e.target)){
-      list.style.display='none';
-      document.removeEventListener('click',handler);
-    }
-  });
-  inp.focus();
-}
 function agregarMaterialProyecto(projId){
   var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
   if(!p) return;
@@ -1444,17 +1379,11 @@ function agregarMaterialProyecto(projId){
     var stock=stockActual(c.id);
     return '<option value="'+c.id+'">[Stock: '+stock+'] '+c.codigo+' -- '+c.desc+'</option>';
   }).join('');
-  var _amComps=[...DB.componentes].sort(function(a,b){return (a.desc||'').localeCompare(b.desc||'','es');});
   openModal('Agregar material -- '+p.numero,
     '<div class="fg2">'+
       '<div class="fg full"><label>Componente *</label>'+
-        '<div id="am-comp-wrap" style="position:relative">'+
-          '<input id="am-comp-input" type="text" placeholder="Buscar componente..." autocomplete="off"'+
-            ' style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;box-sizing:border-box;background:var(--surface2);color:var(--text)">'+
-          '<div id="am-comp-list" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;'+
-            'background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)"></div>'+
-          '<input type="hidden" id="am-comp" value="">'+
-        '</div></div>'+
+        '<select id="am-comp" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
+          '<option value="">-- seleccionar --</option>'+compOpts+'</select></div>'+
       '<div class="fg"><label>Cantidad *</label><input id="am-cant" type="number" min="1" value="1"></div>'+
     '</div>',
     function(){
@@ -1537,7 +1466,6 @@ function agregarMaterialProyecto(projId){
       setTimeout(function(){abrirProyecto(projId);},100);
       return true;
     });
-  setTimeout(function(){initAmCompDropdown(_amComps);},10);
 }
 
 function quitarMaterialProyecto(projId, idx){
@@ -1949,7 +1877,56 @@ function reporteProyectos(){
           '</div>':'')+''+
       '</div>'+
 
-      // FILA 2: Barras de avance
+      // FILA 2: Erogaciones vs presupuesto
+      (function(){
+        var presup=parseFloat(p.presupuesto)||0;
+        var gastoMO=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+        var gastoMat=valor;
+        var totalErogado=gastoMat+gastoMO;
+        var pctEjec=presup>0?Math.min(200,Math.round(totalErogado/presup*100)):0;
+        var superaPresup=presup>0&&totalErogado>presup;
+        var diferencia=presup-totalErogado;
+        return '<div style="background:var(--surface2);border:1px solid '+(superaPresup?'var(--red)':'var(--border)')+';border-radius:6px;padding:10px 12px;margin-bottom:10px">'+
+          '<div style="font-size:9px;color:'+(superaPresup?'var(--red)':'var(--text2)')+';text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">Erogaciones vs presupuesto</div>'+
+          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-bottom:10px">'+
+            '<div style="background:var(--surface3);border-radius:5px;padding:6px 8px">'+
+              '<div style="font-size:9px;color:var(--text2)">Presupuesto</div>'+
+              '<div style="font-size:13px;font-weight:700">'+(presup?'$'+Math.round(presup).toLocaleString('es-AR'):'--')+'</div>'+
+            '</div>'+
+            '<div style="background:var(--surface3);border-radius:5px;padding:6px 8px">'+
+              '<div style="font-size:9px;color:var(--text2)">Materiales</div>'+
+              '<div style="font-size:13px;font-weight:700;color:var(--blue)">$'+Math.round(gastoMat).toLocaleString('es-AR')+'</div>'+
+            '</div>'+
+            '<div style="background:var(--surface3);border-radius:5px;padding:6px 8px">'+
+              '<div style="font-size:9px;color:var(--text2)">MO</div>'+
+              '<div style="font-size:13px;font-weight:700;color:var(--amber)">$'+Math.round(gastoMO).toLocaleString('es-AR')+'</div>'+
+            '</div>'+
+            '<div style="background:'+(superaPresup?'#3a0000':'#0a2a0a')+';border-radius:5px;padding:6px 8px">'+
+              '<div style="font-size:9px;color:'+(superaPresup?'var(--red)':'var(--green)')+'">Total erogado</div>'+
+              '<div style="font-size:13px;font-weight:700;color:'+(superaPresup?'var(--red)':'var(--green)')+'">$'+Math.round(totalErogado).toLocaleString('es-AR')+'</div>'+
+            '</div>'+
+          '</div>'+
+          (presup>0?
+            '<div style="margin-bottom:4px">'+
+              '<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text2);margin-bottom:3px">'+
+                '<span>Ejecucion presupuestaria</span>'+
+                '<span style="color:'+(superaPresup?'var(--red)':'var(--text)')+';font-weight:700">'+pctEjec+'%</span>'+
+              '</div>'+
+              '<div style="background:var(--surface3);border-radius:3px;height:8px;overflow:hidden;position:relative">'+
+                '<div style="height:100%;background:var(--blue);width:'+Math.min(100,Math.round(gastoMat/presup*100))+'%;position:absolute;left:0"></div>'+
+                '<div style="height:100%;background:var(--amber);width:'+Math.min(100,Math.round(gastoMO/presup*100))+'%;position:absolute;left:'+Math.min(100,Math.round(gastoMat/presup*100))+'%"></div>'+
+                (superaPresup?'<div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:var(--red)"></div>':'')+
+              '</div>'+
+              '<div style="display:flex;gap:10px;margin-top:4px;font-size:9px">'+
+                '<span style="color:var(--blue)">■ Materiales</span>'+
+                '<span style="color:var(--amber)">■ MO</span>'+
+                '<span style="color:'+(diferencia>=0?'var(--green)':'var(--red)')+';margin-left:auto;font-weight:700">'+(diferencia>=0?'Disponible: $'+Math.round(diferencia).toLocaleString('es-AR'):'Exceso: $'+Math.round(Math.abs(diferencia)).toLocaleString('es-AR'))+'</span>'+
+              '</div>'+
+            '</div>':'<div style="font-size:10px;color:var(--text3)">Sin presupuesto cargado</div>')+
+        '</div>';
+      })()+
+
+      // FILA 3: Barras de avance
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'+
         // Avance planificado (tiempo)
         '<div style="background:var(--surface2);border-radius:6px;padding:8px 10px">'+
