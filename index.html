@@ -152,6 +152,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Operaciones</div>
+    <a id="nav-dashboard" onclick="goTo('dashboard')">🏠 Dashboard</a>
     <a id="nav-proyectos" onclick="goTo('proyectos')">📁 Proyectos</a>
   </div>
   <div class="nav-section">
@@ -177,10 +178,14 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
 </nav>
 <div class="main">
   <div class="topbar">
-    <div style="display:flex;align-items:center;gap:14px;min-width:0">
+    <div style="display:flex;align-items:center;gap:14px;min-width:0;flex:1">
       <div style="font-size:11px;font-weight:700;color:var(--primary);letter-spacing:2px;text-transform:uppercase;white-space:nowrap;flex-shrink:0">Gestión de Proyectos y Stock</div>
       <div style="width:1px;height:16px;background:var(--border);flex-shrink:0"></div>
       <div class="ptitle" id="ptitle" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Stock</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex:1;justify-content:center;max-width:360px">
+      <input id="global-search" type="text" placeholder="🔍 Buscar en todo..." oninput="busquedaGlobal(this.value)" onfocus="mostrarResultados()" style="width:100%;padding:6px 12px;border:1px solid var(--border);border-radius:20px;font-size:12px;background:var(--surface2);color:var(--text)">
+      <div id="search-results" style="display:none;position:absolute;top:52px;left:50%;transform:translateX(-50%);width:420px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);z-index:500;box-shadow:0 4px 20px rgba(0,0,0,.4);max-height:360px;overflow-y:auto"></div>
     </div>
     <div class="pacts" id="pacts"></div>
   </div>
@@ -285,8 +290,13 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
       </div></div>
     </div>
 
+    <!-- DASHBOARD -->
+    <div class="panel on" id="panel-dashboard">
+      <div id="dashboard-body"></div>
+    </div>
+
     <!-- PROYECTOS -->
-    <div class="panel on" id="panel-proyectos">
+    <div class="panel" id="panel-proyectos">
       <div id="proj-stats" class="stats"></div>
       <div class="sbar">
         <input type="text" id="q-proj" placeholder="🔍 Buscar proyecto..." oninput="renderProyectos()">
