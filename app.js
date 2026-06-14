@@ -1333,19 +1333,52 @@ function agregarMaterialProyecto(projId){
         if(cantFaltante>0) accion+=' (faltante: '+cantFaltante+' -- se generara OC)';
         p.historial.push({fecha:today(),accion:accion});
       } else if(p.estado==='En curso'){
-        // En curso: descuenta directo
+        // En curso: entregar lo que hay, OC por el total si hay faltante
         var stockDisp2=stockActual(compId);
-        if(cant>stockDisp2){alert('Stock insuficiente. Disponible: '+stockDisp2);return false;}
+        var cantAEntregar=Math.min(cant,stockDisp2);
+        var cantFaltante2=cant-cantAEntregar;
         if(existing){
           existing.cant=parseFloat(existing.cant)+cant;
+          existing.cantPendienteOC=(parseFloat(existing.cantPendienteOC)||0)+cantFaltante2;
+          existing.entregado=(parseFloat(existing.entregado)||0)+cantAEntregar;
         } else {
-          p.materiales.push({compId:compId,cant:cant,devuelto:0,reservado:false,cantPendienteOC:0});
+          p.materiales.push({compId:compId,cant:cant,devuelto:0,reservado:false,cantPendienteOC:cantFaltante2,entregado:cantAEntregar});
         }
-        DB.movimientos.push({
-          id:DB.nid++,cid:compId,tipo:'Salida manual',cant:cant,
-          fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',estadoMat:'N'
-        });
-        p.historial.push({fecha:today(),accion:'Material adicional agregado y descontado del stock: '+comp.desc+' x'+cant});
+        if(cantAEntregar>0){
+          DB.movimientos.push({
+            id:DB.nid++,cid:compId,tipo:'Salida instalacion',cant:cantAEntregar,
+            fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',estadoMat:'N',proyId:p.id
+          });
+        }
+        if(cantFaltante2>0){
+          // Generar OC por proveedor por el total solicitado
+          var prov2=comp.proveedor||'Sin proveedor';
+          var ocExistente=DB.ordenes.find(function(o){
+            return o.ocReserva&&o.proyId===p.id&&o.proveedor===prov2&&o.estado!=='Cancelada'&&o.estado!=='Recibida';
+          });
+          if(ocExistente){
+            // Agregar el item a la OC existente del mismo proveedor
+            var itemExistente=ocExistente.items.find(function(i){return i.cid===compId;});
+            if(itemExistente) itemExistente.cant=parseFloat(itemExistente.cant)+cant;
+            else ocExistente.items.push({cid:compId,cant:cant});
+            p.historial.push({fecha:today(),accion:'Item agregado a OC existente '+ocExistente.numero+': '+comp.desc+' x'+cant});
+          } else {
+            var nuevaOC={
+              id:DB.nid++,numero:getNumOC(),fecha:today(),
+              estado:'Pendiente de compra',
+              items:[{cid:compId,cant:cant}],
+              proveedor:prov2,
+              obs:'Generada por material adicional -- Proyecto '+p.numero,
+              ocReserva:true,proyId:p.id
+            };
+            DB.ordenes.unshift(nuevaOC);
+            p.historial.push({fecha:today(),accion:'OC generada por faltante: '+nuevaOC.numero+' -- '+comp.desc+' x'+cant+' (entregado: '+cantAEntregar+', pendiente: '+cantFaltante2+')'});
+          }
+        }
+        var accion2='Material adicional: '+comp.desc+' x'+cant;
+        if(cantAEntregar>0) accion2+=' -- entregado al proyecto: '+cantAEntregar;
+        if(cantFaltante2>0) accion2+=' -- OC generada por faltante: '+cantFaltante2;
+        p.historial.push({fecha:today(),accion:accion2});
       }
       save();cerrarModal();
       setTimeout(function(){abrirProyecto(projId);},100);
