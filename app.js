@@ -128,14 +128,19 @@ function intentarLogin(){
   _iniciarApp();
 }
 
+var _appYaIniciada = false;
+
 function _iniciarApp(){
   // Mostrar usuario en nav
   var navUser=document.getElementById('nav-usuario');
   if(navUser&&_usuarioActual) navUser.innerHTML='<strong style="color:var(--text)">'+_usuarioActual.nombre+'</strong><br><span style="color:'+(esAdmin()?'var(--primary)':'var(--amber)')+'">'+_usuarioActual.rol+'</span>';
   // Aplicar restricciones de nav para operador
   _aplicarRestriccionesNav();
-  // Iniciar splash
-  if(typeof iniciarSplash==='function') iniciarSplash();
+  // Iniciar splash solo la primera vez
+  if(!_appYaIniciada){
+    _appYaIniciada=true;
+    if(typeof iniciarSplash==='function') iniciarSplash();
+  }
 }
 
 function cerrarSesion(){
@@ -3387,8 +3392,10 @@ function eliminarOrigen(i){
 }
 
 function toggleLogin(val){
-  DB.config.loginDeshabilitado=val;
+  DB.config.loginDeshabilitado = val === true || val === 'true';
   save();
+  var msg = DB.config.loginDeshabilitado ? 'Login deshabilitado. Al recargar entrará directo como Administrador.' : 'Login habilitado. Al recargar pedirá usuario y contraseña.';
+  alert(msg);
 }
 
 function nuevoUsuario(){
