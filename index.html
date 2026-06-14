@@ -389,6 +389,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
         <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-p" onclick="exportarJSON()">⬇️ Exportar JSON</button>
           <button class="btn" onclick="exportarADrive()">☁️ Drive</button>
+          <button class="btn" onclick="exportarExcel()">📊 Exportar Excel</button>
           <label class="btn" style="cursor:pointer">📂 Importar JSON<input type="file" accept=".json" style="display:none" onchange="importarJSON(this)"></label>
         </div>
       </div>
@@ -403,6 +404,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
   </div>
 </div>
 <div id="mbox"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
