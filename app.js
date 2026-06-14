@@ -4028,84 +4028,125 @@ function renderDashboard(){
   if(!proyControl.length){
     h += '<div class="empty">Sin proyectos activos.</div>';
   } else {
-    h += '<table style="width:100%;border-collapse:collapse">'+
-      '<thead><tr style="background:var(--surface2)">'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:left">Proyecto</th>'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:center">Avance físico</th>'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:center">Avance tiempo</th>'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:center">Semáforo</th>'+
-        '<th style="padding:5px 10px;font-size:10px;text-align:center">Días restantes</th>'+
-      '</tr></thead><tbody>';
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">';
 
     proyControl.forEach(function(p){
-      // Avance fisico: MO ponderada por tareas OK
+      // Avance fisico ponderado
       var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
       var avFisico=pesoTotal>0?Math.round((p.tareas||[]).reduce(function(a,t){
         return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;
       },0)):null;
-      // Avance programado: % tiempo transcurrido
-      var avTiempo=null;
-      var diasRestantes=null;
+      // Avance tiempo
+      var avTiempo=null,diasRestantes=null;
       if(p.fechaInicio&&p.fechaEstFin){
         var ini=new Date(p.fechaInicio);
         var fin=new Date(p.fechaEstFin);
         var hoyD=new Date(hoy2);
-        var total=fin-ini;
-        var trans=hoyD-ini;
-        avTiempo=total>0?Math.min(100,Math.max(0,Math.round(trans/total*100))):0;
+        avTiempo=Math.min(100,Math.max(0,Math.round((hoyD-ini)/(fin-ini)*100)));
         diasRestantes=Math.round((fin-hoyD)/86400000);
       }
-      // Semaforo: fisico vs tiempo
-      var semaforo='⚪';var semaforoColor='var(--text3)';var semaforoLabel='Sin datos';
+      // Semaforo
+      var semaforo='⚪',semaforoColor='var(--text3)',semaforoLabel='Sin datos';
       if(avFisico!==null&&avTiempo!==null){
         var diff=avFisico-avTiempo;
         if(diff>=5){semaforo='🟢';semaforoColor='var(--green)';semaforoLabel='Adelantado';}
         else if(diff>=-10){semaforo='🟡';semaforoColor='var(--amber)';semaforoLabel='En línea';}
         else{semaforo='🔴';semaforoColor='var(--red)';semaforoLabel='Atrasado';}
       }
-      h += '<tr style="border-bottom:1px solid var(--border)'+(p.estado==='Pausado'?';opacity:.7':'')+'">'+
-        '<td style="padding:7px 10px;font-size:12px;cursor:pointer;color:var(--primary)" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+
-          '<strong>'+p.nombre+'</strong>'+
-          '<div style="font-size:10px;color:var(--text2)">'+p.numero+'</div>'+
-        '</td>'+
-        '<td style="padding:7px 10px;text-align:center">'+proyEstadoPill(p.estado)+'</td>'+
-        // Avance fisico
-        '<td style="padding:7px 10px;min-width:100px">'+
-          (avFisico!==null?
-            '<div style="display:flex;align-items:center;gap:6px">'+
-              '<div style="flex:1;background:var(--surface3);border-radius:3px;height:7px;overflow:hidden">'+
-                '<div style="height:100%;background:'+(avFisico>=100?'var(--green)':'var(--blue)')+';width:'+avFisico+'%"></div>'+
-              '</div>'+
-              '<span style="font-size:11px;font-weight:700;color:'+(avFisico>=100?'var(--green)':'var(--text)')+'">'+avFisico+'%</span>'+
-            '</div>':
-            '<span style="font-size:10px;color:var(--text3)">Sin tareas ponderadas</span>')+
-        '</td>'+
-        // Avance tiempo
-        '<td style="padding:7px 10px;min-width:100px">'+
-          (avTiempo!==null?
-            '<div style="display:flex;align-items:center;gap:6px">'+
-              '<div style="flex:1;background:var(--surface3);border-radius:3px;height:7px;overflow:hidden">'+
-                '<div style="height:100%;background:'+(avTiempo>=100?'var(--red)':'#555')+';width:'+avTiempo+'%"></div>'+
-              '</div>'+
-              '<span style="font-size:11px;font-weight:700;color:'+(avTiempo>=100?'var(--red)':'var(--text2)')+'">'+avTiempo+'%</span>'+
-            '</div>':
-            '<span style="font-size:10px;color:var(--text3)">Sin fechas</span>')+
-        '</td>'+
-        // Semaforo
-        '<td style="padding:7px 10px;text-align:center">'+
-          '<div style="font-size:18px">'+semaforo+'</div>'+
-          '<div style="font-size:10px;color:'+semaforoColor+';font-weight:700">'+semaforoLabel+'</div>'+
-        '</td>'+
-        // Dias restantes
-        '<td style="padding:7px 10px;text-align:center;font-size:12px;font-weight:700;color:'+
-          (diasRestantes===null?'var(--text3)':diasRestantes<0?'var(--red)':diasRestantes<=7?'var(--amber)':'var(--text)')+'">'+
-          (diasRestantes===null?'--':diasRestantes<0?Math.abs(diasRestantes)+' días vencido':diasRestantes+' días')+
-        '</td>'+
-      '</tr>';
+      // Tareas
+      var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
+      var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+      var tareasTot=(p.tareas||[]).length;
+      // Presupuesto
+      var presup=parseFloat(p.presupuesto)||0;
+      var erogMat=(p.materiales||[]).reduce(function(a,m){
+        var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+        var entregado=m.reservado?0:(parseFloat(m.entregado)||parseFloat(m.cant)||0);
+        return a+entregado*(parseFloat(comp.costo)||0);
+      },0);
+      var erogMO=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+      var erogTotal=erogMat+erogMO;
+      var pctPresup=presup>0?Math.min(200,Math.round(erogTotal/presup*100)):null;
+      var superaPresup=presup>0&&erogTotal>presup;
+
+      h += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+
+        // Header card
+        '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start">'+
+          '<div>'+
+            '<div style="font-weight:700;font-size:13px;color:var(--text)">'+p.nombre+'</div>'+
+            '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+p.numero+(p.prioridad?' &middot; '+p.prioridad:'')+'</div>'+
+          '</div>'+
+          '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">'+
+            proyEstadoPill(p.estado)+
+            '<div style="font-size:18px;line-height:1">'+semaforo+'</div>'+
+            '<div style="font-size:10px;font-weight:700;color:'+semaforoColor+'">'+semaforoLabel+'</div>'+
+          '</div>'+
+        '</div>'+
+        // Barras de avance
+        '<div style="padding:10px 14px;border-bottom:1px solid var(--border)">'+
+          // Fisico
+          '<div style="margin-bottom:8px">'+
+            '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:3px">'+
+              '<span>Avance físico (MO)</span>'+
+              '<span style="font-weight:700;color:'+(avFisico===null?'var(--text3)':avFisico>=100?'var(--green)':'var(--blue)')+'">'+
+                (avFisico===null?'Sin tareas ponderadas':avFisico+'%')+
+              '</span>'+
+            '</div>'+
+            '<div style="background:var(--surface3);border-radius:3px;height:7px;overflow:hidden">'+
+              (avFisico!==null?'<div style="height:100%;background:'+(avFisico>=100?'var(--green)':'var(--blue)')+';width:'+avFisico+'%;transition:width .3s"></div>':'')+''+
+            '</div>'+
+          '</div>'+
+          // Tiempo
+          '<div>'+
+            '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);margin-bottom:3px">'+
+              '<span>Avance tiempo</span>'+
+              '<span style="font-weight:700;color:'+(avTiempo===null?'var(--text3)':avTiempo>=100?'var(--red)':'var(--text2)')+'">'+
+                (avTiempo===null?'Sin fechas':avTiempo+'%')+
+              '</span>'+
+            '</div>'+
+            '<div style="background:var(--surface3);border-radius:3px;height:7px;overflow:hidden">'+
+              (avTiempo!==null?'<div style="height:100%;background:'+(avTiempo>=100?'var(--red)':'#555')+';width:'+avTiempo+'%;transition:width .3s"></div>':'')+''+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+        // Stats fila
+        '<div style="padding:8px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border-bottom:'+(presup?'1px solid var(--border)':'none')+'">'+
+          '<div style="text-align:center">'+
+            '<div style="font-size:14px;font-weight:700;color:'+(diasRestantes===null?'var(--text3)':diasRestantes<0?'var(--red)':diasRestantes<=7?'var(--amber)':'var(--text)')+'">'+
+              (diasRestantes===null?'--':diasRestantes<0?Math.abs(diasRestantes)+'v':diasRestantes)+
+            '</div>'+
+            '<div style="font-size:9px;color:var(--text2)">'+(diasRestantes!==null&&diasRestantes<0?'días venc.':'días rest.')+' </div>'+
+          '</div>'+
+          '<div style="text-align:center">'+
+            '<div style="font-size:14px;font-weight:700;color:'+(tareasAt>0?'var(--red)':tareasOK===tareasTot&&tareasTot>0?'var(--green)':'var(--text)')+'">'+tareasOK+'/'+tareasTot+'</div>'+
+            '<div style="font-size:9px;color:var(--text2)">tareas OK</div>'+
+          '</div>'+
+          '<div style="text-align:center">'+
+            '<div style="font-size:14px;font-weight:700;color:'+(tareasAt>0?'var(--red)':'var(--text3)')+'">'+tareasAt+'</div>'+
+            '<div style="font-size:9px;color:var(--text2)">atrasadas</div>'+
+          '</div>'+
+          '<div style="text-align:center">'+
+            '<div style="font-size:13px;font-weight:700;color:'+(pctPresup===null?'var(--text3)':superaPresup?'var(--red)':'var(--green)')+'">'+
+              (pctPresup===null?'--':pctPresup+'%')+
+            '</div>'+
+            '<div style="font-size:9px;color:var(--text2)">ejec. presup.</div>'+
+          '</div>'+
+        '</div>'+
+        // Barra presupuesto
+        (presup>0?
+          '<div style="padding:6px 14px">'+
+            '<div style="background:var(--surface3);border-radius:3px;height:5px;overflow:hidden;position:relative">'+
+              '<div style="height:100%;background:'+(superaPresup?'var(--red)':pctPresup>=80?'var(--amber)':'var(--green)')+';width:'+Math.min(100,pctPresup||0)+'%"></div>'+
+            '</div>'+
+            '<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text2);margin-top:2px">'+
+              '<span>$'+Math.round(erogTotal).toLocaleString('es-AR')+' erogado</span>'+
+              '<span>$'+Math.round(presup).toLocaleString('es-AR')+' presupuesto</span>'+
+            '</div>'+
+          '</div>':'')+''+
+      '</div>';
     });
 
-    h += '</tbody></table>';
+    h += '</div>';
   }
   h += '</div></div>';
 
