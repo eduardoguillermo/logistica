@@ -53,10 +53,22 @@ function _buildStockCache(){
     var cid = m.cid||m.compId;
     if(!cid) return;
     if(!_stockCache[cid]) _stockCache[cid] = 0;
+    // Reserva descuenta stock fisico igual que una salida
     _stockCache[cid] += m.tipo==='Entrada' ? (parseFloat(m.cant)||0) : -(parseFloat(m.cant)||0);
   });
 }
 function stockActual(cid){ if(!_stockCache) _buildStockCache(); return _stockCache[cid]||0; }
+// Calcula cuanto hay reservado en depositos transitorios (proyectos Planificados)
+function stockReservado(cid){
+  var total=0;
+  (DB.proyectos||[]).forEach(function(p){
+    if(p.estado!=='Planificado') return;
+    (p.materiales||[]).forEach(function(m){
+      if((m.cid||m.compId)===cid && m.reservado) total+=parseFloat(m.cant)||0;
+    });
+  });
+  return total;
+}
 function invalidarStockCache(){ _stockCache = null; }
 function save(){ invalidarStockCache(); localStorage.setItem(SKEY, JSON.stringify(DB)); }
 
@@ -1296,27 +1308,44 @@ function agregarMaterialProyecto(projId){
       var compId=parseInt(document.getElementById('am-comp').value)||0;
       var cant=parseFloat(document.getElementById('am-cant').value)||0;
       if(!compId||!cant){alert('Selecciona un componente e ingresa la cantidad.');return false;}
-      var stockDisp=stockActual(compId);
-      if(cant>stockDisp){alert('Stock insuficiente. Disponible: '+stockDisp);return false;}
       var comp=DB.componentes.find(function(c){return c.id===compId;})||{};
       // Agregar a materiales del proyecto
       var existing=p.materiales.find(function(m){return m.compId===compId;});
-      if(existing){
-        existing.cant=parseFloat(existing.cant)+cant;
-      } else {
-        p.materiales.push({compId:compId,cant:cant,devuelto:0});
-      }
-      // Salida de stock SOLO si el proyecto ya esta En curso
-      // En Planificado la salida ocurre al confirmar la planificacion
-      if(p.estado==='En curso'){
+      if(p.estado==='Planificado'){
+        // RESERVA: descontar stock fisico inmediatamente, guardar flag reservado
+        var stockDisp=stockActual(compId);
+        var cantAReservar=Math.min(cant,stockDisp);
+        var cantFaltante=cant-cantAReservar;
+        if(existing){
+          existing.cant=parseFloat(existing.cant)+cant;
+          existing.reservado=(existing.reservado||true);
+          existing.cantPendienteOC=(parseFloat(existing.cantPendienteOC)||0)+cantFaltante;
+        } else {
+          p.materiales.push({compId:compId,cant:cant,devuelto:0,reservado:true,cantPendienteOC:cantFaltante});
+        }
+        if(cantAReservar>0){
+          DB.movimientos.push({
+            id:DB.nid++,cid:compId,tipo:'Reserva',cant:cantAReservar,
+            fecha:today(),nota:'Reserva proyecto '+p.numero,origen:'Reserva',estadoMat:'N',proyId:p.id
+          });
+        }
+        var accion='Material reservado en deposito transitorio: '+comp.desc+' x'+cant;
+        if(cantFaltante>0) accion+=' (faltante: '+cantFaltante+' -- se generara OC)';
+        p.historial.push({fecha:today(),accion:accion});
+      } else if(p.estado==='En curso'){
+        // En curso: descuenta directo
+        var stockDisp2=stockActual(compId);
+        if(cant>stockDisp2){alert('Stock insuficiente. Disponible: '+stockDisp2);return false;}
+        if(existing){
+          existing.cant=parseFloat(existing.cant)+cant;
+        } else {
+          p.materiales.push({compId:compId,cant:cant,devuelto:0,reservado:false,cantPendienteOC:0});
+        }
         DB.movimientos.push({
           id:DB.nid++,cid:compId,tipo:'Salida manual',cant:cant,
-          fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',
-          estadoMat:'N'
+          fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',estadoMat:'N'
         });
         p.historial.push({fecha:today(),accion:'Material adicional agregado y descontado del stock: '+comp.desc+' x'+cant});
-      } else {
-        p.historial.push({fecha:today(),accion:'Material agregado al plan: '+comp.desc+' x'+cant+' (se descontara al confirmar)'});
       }
       save();cerrarModal();
       setTimeout(function(){abrirProyecto(projId);},100);
@@ -1329,13 +1358,25 @@ function quitarMaterialProyecto(projId, idx){
   if(!p||!p.materiales[idx]) return;
   var m=p.materiales[idx];
   var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?'};
-  if(!confirm('Quitar '+comp.desc+' x'+m.cant+' del proyecto y devolver al stock?')) return;
-  // Devolver al stock
-  DB.movimientos.push({
-    id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:m.cant,
-    fecha:today(),ref:p.numero,nota:'Quita de proyecto',origen:'Devolucion proyecto'
-  });
-  p.historial.push({fecha:today(),accion:'Material quitado: '+comp.desc+' x'+m.cant+' (devuelto al stock)'});
+  if(!confirm('Quitar '+comp.desc+' x'+m.cant+' del proyecto?')) return;
+  if(p.estado==='Planificado' && m.reservado){
+    // Devolver al stock lo que habia sido reservado (lo que no tenia OC pendiente)
+    var cantReservadaEnStock=(parseFloat(m.cant)||0)-(parseFloat(m.cantPendienteOC)||0);
+    if(cantReservadaEnStock>0){
+      DB.movimientos.push({
+        id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:cantReservadaEnStock,
+        fecha:today(),ref:p.numero,nota:'Quita de reserva proyecto '+p.numero,origen:'Devolucion proyecto'
+      });
+    }
+    p.historial.push({fecha:today(),accion:'Material quitado de deposito transitorio: '+comp.desc+' x'+m.cant+' (stock restaurado)'});
+  } else {
+    // En curso: devuelve al stock normal
+    DB.movimientos.push({
+      id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:m.cant,
+      fecha:today(),ref:p.numero,nota:'Quita de proyecto',origen:'Devolucion proyecto'
+    });
+    p.historial.push({fecha:today(),accion:'Material quitado: '+comp.desc+' x'+m.cant+' (devuelto al stock)'});
+  }
   p.materiales.splice(idx,1);
   save();cerrarModal();
   renderProyectos();
@@ -1346,29 +1387,66 @@ function confirmarPlanificacion(id){
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
   if(!(p.materiales||[]).length){alert('Agrega materiales antes de confirmar.');return;}
-  // Verificar stock
-  var faltantes=[];
+  if(!confirm('Aprobar planificacion de '+p.numero+'?\nLos materiales reservados pasan al proyecto. Se emitiran OC para los faltantes.')) return;
+
+  // Buscar items con faltante (cantPendienteOC > 0)
+  var faltantesPorProv={};
   p.materiales.forEach(function(m){
-    var disp=stockActual(m.compId);
-    if((parseFloat(m.cant)||0)>disp){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?'};
-      faltantes.push(comp.desc+': necesita '+m.cant+', hay '+disp);
-    }
-  });
-  if(faltantes.length){
-    if(!confirm('Stock insuficiente para:\n\n'+faltantes.join('\n')+'\n\n¿Continuar de todas formas?')) return;
-  }
-  if(!confirm('Confirmar planificacion de '+p.numero+'?\nSe descontaran los materiales del stock y el proyecto pasara a "En curso".')) return;
-  // Salida de stock para todos los materiales
-  p.materiales.forEach(function(m){
+    var faltante=parseFloat(m.cantPendienteOC)||0;
+    if(faltante<=0) return;
     var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
-    DB.movimientos.push({
-      id:DB.nid++,cid:m.compId,tipo:'Salida manual',cant:m.cant,
-      fecha:today(),nota:'Proyecto '+p.numero,origen:'Proyecto',estadoMat:'N'
-    });
+    var prov=comp.proveedor||'Sin proveedor';
+    if(!faltantesPorProv[prov]) faltantesPorProv[prov]=[];
+    faltantesPorProv[prov].push({cid:m.compId,cant:parseFloat(m.cant)||0}); // OC por cantidad total reservada
   });
+
+  // Generar OC por proveedor
+  var ocGeneradas=[];
+  Object.keys(faltantesPorProv).forEach(function(prov){
+    var oc={
+      id:DB.nid++,
+      numero:getNumOC(),
+      fecha:today(),
+      estado:'Pendiente de compra',
+      items:faltantesPorProv[prov],
+      proveedor:prov,
+      obs:'Generada por reserva -- Proyecto '+p.numero,
+      ocReserva:true,
+      proyId:p.id
+    };
+    DB.ordenes.unshift(oc);
+    ocGeneradas.push(oc.numero);
+    p.historial.push({fecha:today(),accion:'OC generada por faltante: '+oc.numero+' -- '+prov});
+  });
+
+  // Pasar materiales del deposito transitorio al proyecto
+  // Los movimientos de Reserva ya descontaron el stock, ahora los convertimos en Salida instalacion
+  p.materiales.forEach(function(m){
+    var cantEnStock=(parseFloat(m.cant)||0)-(parseFloat(m.cantPendienteOC)||0);
+    if(cantEnStock>0){
+      // Registrar conversion de Reserva a Salida proyecto
+      DB.movimientos.push({
+        id:DB.nid++,cid:m.compId,tipo:'Salida instalacion',cant:cantEnStock,
+        fecha:today(),nota:'Aprobacion proyecto '+p.numero,origen:'Proyecto',estadoMat:'N',proyId:p.id
+      });
+      // Anular el movimiento de Reserva (entrada compensatoria)
+      DB.movimientos.push({
+        id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:cantEnStock,
+        fecha:today(),nota:'Conversion reserva a salida -- Proyecto '+p.numero,origen:'Ajuste reserva',proyId:p.id
+      });
+    }
+    // Marcar como no reservado (ya es del proyecto)
+    m.reservado=false;
+    m.entregado=cantEnStock;
+  });
+
   p.estado='En curso';
-  p.historial.push({fecha:today(),accion:'Planificacion confirmada -- materiales descontados del stock',estado:'En curso'});
+  p.historial.push({fecha:today(),accion:'Planificacion aprobada -- materiales pasados al proyecto'+(ocGeneradas.length?' -- OC generadas: '+ocGeneradas.join(', '):''),estado:'En curso'});
+
+  if(ocGeneradas.length){
+    alert('Proyecto aprobado.\nSe generaron '+ocGeneradas.length+' OC por materiales faltantes:\n'+ocGeneradas.join('\n')+'\n\nEl proyecto quedara con entrega parcial hasta recibir las OC.');
+  }
+
   save();cerrarModal();
   renderProyectos();
   setTimeout(function(){abrirProyecto(id);},100);
@@ -1436,19 +1514,49 @@ function cambiarEstadoProyecto(id, nuevoEstado){
 function cancelarProyecto(id){
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
-  var sobrantes=p.materiales.filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
   var msg='Cancelar el proyecto '+p.numero+'?';
-  if(sobrantes.length) msg+='\n\nSe devolvera automaticamente todo el material restante al stock.';
+  if(p.estado==='Planificado'){
+    var tieneReservas=p.materiales.some(function(m){return m.reservado;});
+    if(tieneReservas) msg+='\n\nSe devolvera al stock todo el material reservado en el deposito transitorio.';
+    var tieneOC=DB.ordenes.some(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada';});
+    if(tieneOC) msg+='\nLas OC de reserva vinculadas seran canceladas.';
+  } else {
+    var sobrantes=p.materiales.filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
+    if(sobrantes.length) msg+='\n\nSe devolvera automaticamente todo el material restante al stock.';
+  }
   if(!confirm(msg)) return;
-  // Devolver todo al stock
-  sobrantes.forEach(function(m){
-    var cantDev=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
-    m.devuelto=parseFloat(m.cant)||0;
-    DB.movimientos.push({
-      id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:cantDev,
-      fecha:today(),ref:p.numero,nota:'Cancelacion proyecto '+p.numero,origen:'Devolucion proyecto'
+
+  if(p.estado==='Planificado'){
+    // Devolver reservas al stock
+    p.materiales.forEach(function(m){
+      if(!m.reservado) return;
+      var cantEnStock=(parseFloat(m.cant)||0)-(parseFloat(m.cantPendienteOC)||0);
+      if(cantEnStock>0){
+        DB.movimientos.push({
+          id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:cantEnStock,
+          fecha:today(),ref:p.numero,nota:'Cancelacion proyecto '+p.numero+' -- devolucion reserva',origen:'Devolucion proyecto'
+        });
+      }
     });
-  });
+    // Cancelar OC de reserva vinculadas
+    DB.ordenes.forEach(function(o){
+      if(o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada'&&o.estado!=='Recibida'){
+        o.estado='Cancelada';
+        p.historial.push({fecha:today(),accion:'OC '+o.numero+' cancelada por cancelacion del proyecto'});
+      }
+    });
+  } else {
+    // En curso: devolver sobrantes
+    var sobrantes2=p.materiales.filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
+    sobrantes2.forEach(function(m){
+      var cantDev=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
+      m.devuelto=parseFloat(m.cant)||0;
+      DB.movimientos.push({
+        id:DB.nid++,cid:m.compId,tipo:'Entrada',cant:cantDev,
+        fecha:today(),ref:p.numero,nota:'Cancelacion proyecto '+p.numero,origen:'Devolucion proyecto'
+      });
+    });
+  }
   p.estado='Cancelado';
   p.historial.push({fecha:today(),accion:'Proyecto cancelado -- materiales devueltos al stock',estado:'Cancelado'});
   save();cerrarModal();renderProyectos();renderStock();
@@ -1616,20 +1724,28 @@ function getNumOC(){
 
 function renderOrdenes(){
   var q=(document.getElementById('q-ord')?document.getElementById('q-ord').value||'':'').toLowerCase();
-  var list=[...DB.ordenes].filter(function(o){
-    return !q||((o.numero||'')+(o.proveedor||'')+(o.estado||'')).toLowerCase().includes(q);
-  }).sort(function(a,b){return (b.fecha||'').localeCompare(a.fecha||'');});
+  var todasOC=[...DB.ordenes].sort(function(a,b){return (b.fecha||'').localeCompare(a.fecha||'');});
+  var ocReserva=todasOC.filter(function(o){return o.ocReserva&&(!q||((o.numero||'')+(o.proveedor||'')+(o.estado||'')).toLowerCase().includes(q));});
+  var ocNormal=todasOC.filter(function(o){return !o.ocReserva&&(!q||((o.numero||'')+(o.proveedor||'')+(o.estado||'')).toLowerCase().includes(q));});
+
   var tb=document.getElementById('tbody-ord');
-  if(!list.length){tb.innerHTML='<tr><td colspan="8" class="empty">Sin ordenes de compra.</td></tr>';return;}
-  var estPill={'Pendiente':'p-a',Enviada:'p-b',Recibida:'p-g',Cancelada:'p-r'};
-  tb.innerHTML=list.map(function(o){
+  var estPillNorm={'Pendiente':'p-a',Enviada:'p-b',Recibida:'p-g',Cancelada:'p-r'};
+  var estPillRes={'Pendiente de compra':'p-a','Pendiente de entrega':'p-a',Recibida:'p-g',Cancelada:'p-r'};
+
+  function filaOC(o, esReserva){
     var items=o.items.map(function(i){var c=DB.componentes.find(function(x){return x.id===i.cid;})||{desc:'?'};return c.desc+' ('+i.cant+')';}).join(', ');
     var total=o.items.reduce(function(a,i){var c=DB.componentes.find(function(x){return x.id===i.cid;})||{costo:0};return a+(parseFloat(c.costo)||0)*i.cant;},0);
+    var pillMap=esReserva?estPillRes:estPillNorm;
+    var proyInfo='';
+    if(esReserva&&o.proyId){
+      var proy=(DB.proyectos||[]).find(function(x){return x.id===o.proyId;});
+      if(proy) proyInfo='<div style="font-size:10px;color:#ce93d8;margin-top:2px">'+proy.numero+' -- '+proy.nombre+'</div>';
+    }
     return '<tr>'+
       '<td>'+o.fecha+'</td>'+
       '<td class="mono" style="font-size:11px">'+( o.numero||'--')+'</td>'+
-      '<td><span class="pill '+(estPill[o.estado]||'p-x')+'">'+o.estado+'</span></td>'+
-      '<td style="font-size:11px">'+items+'</td>'+
+      '<td><span class="pill '+(pillMap[o.estado]||'p-x')+'">'+o.estado+'</span></td>'+
+      '<td style="font-size:11px">'+items+proyInfo+'</td>'+
       '<td>'+(o.proveedor||'--')+'</td>'+
       '<td>'+(total?'$'+Math.round(total).toLocaleString('es-AR'):'--')+'</td>'+
       '<td style="font-size:11px">'+(o.obs||'--')+'</td>'+
@@ -1639,7 +1755,25 @@ function renderOrdenes(){
         '<button class="btn btn-sm" style="color:var(--red)" onclick="eliminarOrden('+o.id+')">X</button>'+
       '</td>'+
     '</tr>';
-  }).join('');
+  }
+
+  var html='';
+  // Seccion OC de reserva
+  if(ocReserva.length){
+    html+='<tr style="background:#1a0a2a"><td colspan="8" style="padding:6px 10px;font-size:10px;font-weight:700;color:#ce93d8;text-transform:uppercase;letter-spacing:.06em">OC por reserva de proyecto</td></tr>';
+    html+=ocReserva.map(function(o){return filaOC(o,true);}).join('');
+    if(ocNormal.length){
+      html+='<tr><td colspan="8" style="padding:4px 10px;font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;background:var(--surface2)">Ordenes de compra normales</td></tr>';
+    }
+  }
+  // Seccion OC normales
+  if(ocNormal.length){
+    html+=ocNormal.map(function(o){return filaOC(o,false);}).join('');
+  }
+  if(!html){
+    html='<tr><td colspan="8" class="empty">Sin ordenes de compra.</td></tr>';
+  }
+  tb.innerHTML=html;
 }
 
 function modalOrden(){
@@ -1696,11 +1830,52 @@ function generarOrdenAutomatica(){
 function cambiarEstadoOrden(id){
   var o=DB.ordenes.find(function(x){return x.id===id;});
   if(!o) return;
-  var estados=['Pendiente','Enviada','Recibida','Cancelada'];
-  var cur=estados.indexOf(o.estado);
+  var estados=['Pendiente','Pendiente de compra','Pendiente de entrega','Enviada','Recibida','Cancelada'];
+  // Flujo simplificado para OC de reserva
+  if(o.ocReserva){
+    var flujoReserva=['Pendiente de compra','Pendiente de entrega','Recibida'];
+    var curR=flujoReserva.indexOf(o.estado);
+    if(o.estado==='Recibida'){alert('Esta orden ya fue recibida.');return;}
+    if(o.estado==='Cancelada'){alert('Esta orden esta Cancelada.');return;}
+    var sigR=curR>=0?flujoReserva[curR+1]:flujoReserva[1];
+    if(!sigR) sigR='Recibida';
+    if(!confirm('Cambiar estado a "'+sigR+'"?')) return;
+    o.estado=sigR;
+    if(sigR==='Recibida'){
+      var p=o.proyId?(DB.proyectos||[]).find(function(x){return x.id===o.proyId;}):null;
+      o.items.forEach(function(item){
+        var comp=DB.componentes.find(function(x){return x.id===item.cid;})||{desc:'?',unidad:''};
+        // Registrar entrada al stock
+        DB.movimientos.push({id:DB.nid++,cid:item.cid,tipo:'Entrada',cant:item.cant,fecha:today(),ref:'Orden #'+(o.numero||o.id),nota:'Recepcion OC reserva',origen:'Compra'});
+        // Si hay proyecto vinculado, asignar el saldo pendiente
+        if(p){
+          var mat=p.materiales.find(function(m){return m.compId===item.cid;});
+          var pendiente=mat?parseFloat(mat.cantPendienteOC)||0:0;
+          if(pendiente>0){
+            var aAsignar=Math.min(pendiente,item.cant);
+            var remanente=item.cant-aAsignar;
+            // Salida del stock hacia el proyecto por el saldo pendiente
+            DB.movimientos.push({id:DB.nid++,cid:item.cid,tipo:'Salida instalacion',cant:aAsignar,fecha:today(),nota:'Asignacion saldo OC '+o.numero+' a proyecto '+p.numero,origen:'Proyecto',estadoMat:'N',proyId:p.id});
+            if(mat){
+              mat.cantPendienteOC=Math.max(0,pendiente-aAsignar);
+              mat.entregado=(parseFloat(mat.entregado)||0)+aAsignar;
+            }
+            p.historial.push({fecha:today(),accion:'Recibida OC '+o.numero+': '+aAsignar+' '+comp.unidad+' '+comp.desc+' asignados al proyecto'+(remanente>0?' -- '+remanente+' en stock':' -- sin remanente')});
+          }
+        }
+      });
+      if(p) alert('Stock actualizado.\nEl saldo pendiente fue asignado al proyecto '+p.numero+'.');
+      else alert('Stock actualizado con los items recibidos.');
+    }
+    save();renderOrdenes();renderStock();
+    return;
+  }
+  // Flujo normal (OC no de reserva)
+  var estadosNorm=['Pendiente','Enviada','Recibida','Cancelada'];
+  var cur=estadosNorm.indexOf(o.estado);
   if(o.estado==='Recibida'){alert('Esta orden ya fue recibida.');return;}
   if(o.estado==='Cancelada'){alert('Esta orden esta Cancelada.');return;}
-  var sig=estados[cur+1];
+  var sig=estadosNorm[cur+1];
   if(!confirm('Cambiar estado a "'+sig+'"?')) return;
   o.estado=sig;
   if(sig==='Recibida'){
@@ -2260,8 +2435,17 @@ function renderDashboard(){
   var stockCritico = DB.componentes.filter(function(c){
     return stockActual(c.id)<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;
   });
-  var ocPendientes = (DB.ordenes||[]).filter(function(o){return o.estado==='Pendiente'||o.estado==='Enviada';});
+  var ocPendientes = (DB.ordenes||[]).filter(function(o){return !o.ocReserva&&(o.estado==='Pendiente'||o.estado==='Enviada');});
   var ultMovs = [...(DB.movimientos||[])].sort(function(a,b){return (b.fecha||'').localeCompare(a.fecha||'');}).slice(0,5);
+
+  // Depositos transitorios: proyectos planificados con materiales reservados
+  var depositosTransitorios=(DB.proyectos||[]).filter(function(p){
+    return p.estado==='Planificado'&&(p.materiales||[]).some(function(m){return m.reservado;});
+  });
+  // Entregas parciales: proyectos En curso con cantPendienteOC > 0 en algun material
+  var entregasParciales=(DB.proyectos||[]).filter(function(p){
+    return p.estado==='En curso'&&(p.materiales||[]).some(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
+  });
 
   var h = '';
 
@@ -2278,17 +2462,20 @@ function renderDashboard(){
     '</div>';
   }
 
-  h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px">'+
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:20px">'+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'proyectos\')"><div class="stat-n blue">'+proyActivos.length+'</div><div class="stat-l">En curso</div></div>'+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'proyectos\')"><div class="stat-n amber">'+proyPlanif.length+'</div><div class="stat-l">Planificados</div></div>'+
     (tareasVencidas.length?'<div class="stat" style="cursor:pointer;border-color:#7f0000" onclick="goTo(\'proyectos\')"><div class="stat-n red">'+tareasVencidas.length+'</div><div class="stat-l">Tareas vencidas</div></div>':'')+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'stock\')"><div class="stat-n '+(stockCritico.length>0?'red':'green')+'">'+stockCritico.length+'</div><div class="stat-l">Stock critico</div></div>'+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'ordenes\')"><div class="stat-n">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>'+
+    (depositosTransitorios.length?'<div class="stat" style="cursor:pointer;border-color:#6a1b9a" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#ce93d8">'+depositosTransitorios.length+'</div><div class="stat-l">Dep. transitorios</div></div>':'')+
+    (entregasParciales.length?'<div class="stat" style="cursor:pointer;border-color:#E65100" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#ffa726">'+entregasParciales.length+'</div><div class="stat-l">Entregas parciales</div></div>':'')+
     '<div class="stat"><div class="stat-n">'+DB.componentes.length+'</div><div class="stat-l">Componentes</div></div>'+
   '</div>';
 
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">';
 
+  // Panel proyectos activos
   h += '<div class="card">'+
     '<div class="ch"><div class="ct">Proyectos activos</div><button class="btn btn-sm" onclick="goTo(\'proyectos\')">Ver todos</button></div>'+
     '<div class="card-body">';
@@ -2300,16 +2487,18 @@ function renderDashboard(){
       var venc=tareasP.filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
       var ok=tareasP.filter(function(t){return tareaEstado(t)==='OK';}).length;
       var pct=p.fechaInicio&&p.fechaEstFin?Math.min(100,Math.max(0,Math.round((new Date(hoy)-new Date(p.fechaInicio))/(new Date(p.fechaEstFin)-new Date(p.fechaInicio))*100))):0;
+      var tieneEntregaParcial=(p.materiales||[]).some(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
       h += '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
           '<span style="font-size:12px;font-weight:700;cursor:pointer;color:var(--primary)" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.nombre+'</span>'+
           '<span style="font-family:monospace;font-size:10px;color:var(--text2)">'+p.numero+'</span>'+
         '</div>'+
-        (tareasP.length?
-          '<div style="display:flex;gap:6px;margin-bottom:4px">'+
+        (tareasP.length||tieneEntregaParcial?
+          '<div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">'+
             (venc?'<span style="background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">'+venc+' vencida'+(venc>1?'s':'')+'</span>':'')+
             (ok?'<span style="background:var(--green);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">'+ok+' OK</span>':'')+
-            '<span style="color:var(--text2);font-size:10px">'+tareasP.length+' tareas</span>'+
+            (tareasP.length?'<span style="color:var(--text2);font-size:10px">'+tareasP.length+' tareas</span>':'')+
+            (tieneEntregaParcial?'<span style="background:#3a1a00;color:#ffa726;padding:1px 6px;border-radius:8px;font-size:10px">entrega parcial</span>':'')+
           '</div>':'')+
         (p.fechaInicio&&p.fechaEstFin?
           '<div style="background:var(--surface2);border-radius:3px;height:4px;overflow:hidden"><div style="height:100%;background:'+(pct>=100?'var(--red)':'var(--blue)')+';width:'+pct+'%"></div></div>'+
@@ -2319,19 +2508,28 @@ function renderDashboard(){
   }
   h += '</div></div>';
 
+  // Panel stock critico
   h += '<div class="card">'+
     '<div class="ch"><div class="ct">Stock critico</div><button class="btn btn-sm" onclick="goTo(\'stock\')">Ver stock</button></div>'+
     '<div class="card-body">';
   if(!stockCritico.length){
     h += '<div class="empty" style="color:var(--green)">Sin componentes criticos.</div>';
   } else {
-    h += '<table style="width:100%;border-collapse:collapse">';
+    h += '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr>'+
+        '<th style="font-size:10px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">Componente</th>'+
+        '<th style="font-size:10px;color:var(--text2);padding:3px 4px;text-align:center;border-bottom:1px solid var(--border)">Stock</th>'+
+        '<th style="font-size:10px;color:#ce93d8;padding:3px 4px;text-align:center;border-bottom:1px solid var(--border)">Reserva</th>'+
+        '<th style="font-size:10px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">Min</th>'+
+      '</tr></thead>';
     stockCritico.slice(0,8).forEach(function(c){
       var cant=stockActual(c.id);
+      var reserva=stockReservado(c.id);
       h += '<tr style="border-bottom:1px solid var(--border)">'+
         '<td style="padding:5px 0;font-size:11px">'+c.desc+'</td>'+
-        '<td style="padding:5px 6px;text-align:center;font-weight:700;color:'+(cant<=0?'var(--red)':'var(--amber)')+'">'+cant+'</td>'+
-        '<td style="padding:5px 0;font-size:10px;color:var(--text2)">min '+(c.min||0)+'</td>'+
+        '<td style="padding:5px 4px;text-align:center;font-weight:700;color:'+(cant<=0?'var(--red)':'var(--amber)')+'">'+cant+'</td>'+
+        '<td style="padding:5px 4px;text-align:center;font-size:10px;color:#ce93d8">'+(reserva>0?reserva:'--')+'</td>'+
+        '<td style="padding:5px 0;font-size:10px;color:var(--text2)">'+( c.min||0)+'</td>'+
       '</tr>';
     });
     h += '</table>';
@@ -2341,6 +2539,98 @@ function renderDashboard(){
 
   h += '</div>';
 
+  // Panel depositos transitorios
+  if(depositosTransitorios.length){
+    h += '<div class="card" style="margin-top:14px;border-color:#6a1b9a">'+
+      '<div class="ch" style="border-color:#6a1b9a"><div class="ct" style="color:#ce93d8">Depositos transitorios</div><button class="btn btn-sm" onclick="goTo(\'proyectos\')">Ver proyectos</button></div>'+
+      '<div class="card-body">';
+    depositosTransitorios.forEach(function(p,idx){
+      var itemsReservados=(p.materiales||[]).filter(function(m){return m.reservado;});
+      var valorReserva=itemsReservados.reduce(function(a,m){
+        var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{costo:0};
+        return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
+      },0);
+      var tieneOC=DB.ordenes.some(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada'&&o.estado!=='Recibida';});
+      var ocVinculadas=DB.ordenes.filter(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada'&&o.estado!=='Recibida';});
+      h += '<div style="'+(idx>0?'margin-top:12px;padding-top:12px;border-top:1px solid var(--border)':'')+'">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+          '<span style="font-size:12px;font-weight:700;color:#ce93d8;cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.numero+' -- '+p.nombre+'</span>'+
+          (tieneOC?'<span style="background:#2a0a3a;color:#ce93d8;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">OC pendiente</span>':'<span style="background:#0a2a0a;color:#66bb6a;padding:2px 8px;border-radius:8px;font-size:10px">stock OK</span>')+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">'+
+          '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px">'+
+            '<div style="color:var(--text2);font-size:10px">Items reservados</div>'+
+            '<div style="font-weight:700;font-size:14px;color:#ce93d8">'+itemsReservados.length+'</div>'+
+          '</div>'+
+          '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px">'+
+            '<div style="color:var(--text2);font-size:10px">Valor reserva</div>'+
+            '<div style="font-weight:700;font-size:13px">$'+Math.round(valorReserva).toLocaleString('es-AR')+'</div>'+
+          '</div>'+
+        '</div>'+
+        (tieneOC?
+          '<div style="margin-top:6px;font-size:10px;color:var(--text2)">'+
+            ocVinculadas.map(function(oc){
+              return '<div style="display:flex;align-items:center;gap:6px;margin-top:3px">'+
+                '<span style="color:#ce93d8">'+oc.numero+'</span>'+
+                '<span>'+oc.proveedor+'</span>'+
+                '<span style="background:#3a0000;color:#ef5350;padding:1px 6px;border-radius:8px;font-size:9px;font-weight:700">'+oc.estado+'</span>'+
+              '</div>';
+            }).join('')+
+          '</div>':'')+
+      '</div>';
+    });
+    h += '</div></div>';
+  }
+
+  // Panel entregas parciales
+  if(entregasParciales.length){
+    h += '<div class="card" style="margin-top:14px;border-color:#E65100">'+
+      '<div class="ch" style="border-color:#E65100"><div class="ct" style="color:#ffa726">Entregas parciales</div><button class="btn btn-sm" onclick="goTo(\'ordenes\')">Ver OC</button></div>'+
+      '<div class="card-body">';
+    entregasParciales.forEach(function(p,idx){
+      var matPendientes=(p.materiales||[]).filter(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
+      var ocVinculadas=DB.ordenes.filter(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada'&&o.estado!=='Recibida';});
+      h += '<div style="'+(idx>0?'margin-top:14px;padding-top:14px;border-top:1px solid var(--border)':'')+'">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+          '<span style="font-size:12px;font-weight:700;color:#ffa726;cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.numero+' -- '+p.nombre+'</span>'+
+        '</div>'+
+        '<table style="width:100%;border-collapse:collapse;margin-bottom:8px">'+
+          '<thead><tr>'+
+            '<th style="font-size:10px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">Material pendiente</th>'+
+            '<th style="font-size:10px;color:#66bb6a;text-align:center;padding:3px 4px;border-bottom:1px solid var(--border)">Entregado</th>'+
+            '<th style="font-size:10px;color:#ef5350;text-align:center;padding:3px 4px;border-bottom:1px solid var(--border)">Pendiente</th>'+
+          '</tr></thead><tbody>'+
+          matPendientes.map(function(m){
+            var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
+            var entregado=parseFloat(m.entregado)||0;
+            var pendiente=parseFloat(m.cantPendienteOC)||0;
+            return '<tr style="border-bottom:1px solid var(--border)">'+
+              '<td style="padding:4px 0;font-size:11px">'+comp.desc+'</td>'+
+              '<td style="padding:4px 4px;text-align:center;font-weight:700;color:#66bb6a">'+entregado+' '+(comp.unidad||'')+'</td>'+
+              '<td style="padding:4px 4px;text-align:center;font-weight:700;color:#ef5350">'+pendiente+' '+(comp.unidad||'')+'</td>'+
+            '</tr>';
+          }).join('')+
+          '</tbody></table>'+
+        (ocVinculadas.length?
+          '<div style="display:flex;flex-direction:column;gap:4px">'+
+          ocVinculadas.map(function(oc){
+            return '<div style="background:#1a1a00;border:1px solid #E65100;border-radius:5px;padding:6px 10px;display:flex;justify-content:space-between;align-items:center">'+
+              '<div>'+
+                '<span style="font-size:11px;color:#ffa726;font-weight:700">'+oc.numero+'</span>'+
+                '<span style="font-size:10px;color:var(--text2);margin-left:8px">'+oc.proveedor+'</span>'+
+              '</div>'+
+              '<div style="display:flex;align-items:center;gap:6px">'+
+                '<span style="background:'+(oc.estado==='Pendiente de compra'?'#3a0000':'#3a2000')+';color:'+(oc.estado==='Pendiente de compra'?'#ef5350':'#ffb74d')+';padding:2px 7px;border-radius:8px;font-size:9px;font-weight:700">'+oc.estado+'</span>'+
+                '<button class="btn btn-sm" onclick="cambiarEstadoOrden('+oc.id+')">Estado</button>'+
+              '</div>'+
+            '</div>';
+          }).join('')+
+          '</div>':'')+'</div>';
+    });
+    h += '</div></div>';
+  }
+
+  // Ultimos movimientos
   h += '<div class="card" style="margin-top:14px">'+
     '<div class="ch"><div class="ct">Ultimos movimientos</div><button class="btn btn-sm" onclick="goTo(\'movimientos\')">Ver todos</button></div>'+
     '<div class="card-body">';
@@ -2351,11 +2641,14 @@ function renderDashboard(){
     ultMovs.forEach(function(m){
       var comp=DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{desc:'?',unidad:''};
       var esEnt=m.tipo==='Entrada';
+      var esReserva=m.tipo==='Reserva';
+      var color=esEnt?'var(--green)':esReserva?'#ce93d8':'var(--red)';
+      var signo=esEnt?'+':'-';
       h += '<tr style="border-bottom:1px solid var(--border)">'+
         '<td style="padding:5px 0;font-size:11px;color:var(--text2)">'+m.fecha+'</td>'+
         '<td style="padding:5px 8px;font-size:11px">'+comp.desc+'</td>'+
-        '<td style="padding:5px 0;font-size:11px;font-weight:700;color:'+(esEnt?'var(--green)':'var(--red)')+'">'+
-          (esEnt?'+':'-')+(m.cant||0)+' '+(comp.unidad||'')+'</td>'+
+        '<td style="padding:5px 0;font-size:11px;font-weight:700;color:'+color+'">'+
+          signo+(m.cant||0)+' '+(comp.unidad||'')+'</td>'+
         '<td style="padding:5px 0;font-size:10px;color:var(--text2)">'+(m.nota||m.origen||'')+'</td>'+
       '</tr>';
     });
@@ -2365,6 +2658,7 @@ function renderDashboard(){
 
   el.innerHTML = h;
 }
+
 
 // =======================================================
 // BUSQUEDA GLOBAL
