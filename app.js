@@ -2785,6 +2785,157 @@ function reporteLogPrecios(){
   reporteContainer('Historial de precios ('+cambios.length+' cambios)', h);
 }
 
+// REPORTE: Uso de recursos por proyecto ================================
+function reporteUsoRecursos(){
+  var estados=['Finalizado','En curso','Pausado'];
+  var lista=(DB.proyectos||[]).filter(function(p){return estados.indexOf(p.estado)>-1;})
+    .sort(function(a,b){return (b.numero||'').localeCompare(a.numero||'');});
+
+  if(!lista.length){
+    reporteContainer('Uso de recursos','<div class="empty">Sin proyectos finalizados o en curso.</div>');
+    return;
+  }
+
+  var h='';
+  lista.forEach(function(p){
+    var esFin=p.estado==='Finalizado';
+
+    // MATERIALES
+    var totalMatEstim=0, totalMatReal=0, totalMatDevuelto=0;
+    var rowsMat=(p.materiales||[]).map(function(m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:'',costo:0};
+      var costo=parseFloat(comp.costo)||0;
+      var cantEstim=parseFloat(m.cant)||0;
+      var cantReal=esFin?(parseFloat(m.entregado)||cantEstim):( parseFloat(m.entregado)||0);
+      var devuelto=parseFloat(m.devuelto)||0;
+      var costoEstim=cantEstim*costo;
+      var costoReal=cantReal*costo;
+      totalMatEstim+=costoEstim;
+      totalMatReal+=costoReal;
+      totalMatDevuelto+=devuelto*costo;
+      var diff=cantReal-cantEstim;
+      return '<tr style="border-bottom:1px solid var(--border)">'+
+        '<td style="padding:4px 8px;font-size:11px">'+comp.desc+'</td>'+
+        '<td style="padding:4px 8px;font-size:10px;color:var(--text2)">'+( comp.unidad||'')+'</td>'+
+        '<td style="padding:4px 8px;text-align:center;font-size:11px">'+cantEstim+'</td>'+
+        '<td style="padding:4px 8px;text-align:center;font-size:11px;font-weight:700;color:'+(cantReal<cantEstim?'var(--green)':cantReal>cantEstim?'var(--red)':'var(--text)')+'">'+cantReal+'</td>'+
+        (devuelto>0?'<td style="padding:4px 8px;text-align:center;font-size:11px;color:#66bb6a">'+devuelto+'</td>':'<td style="padding:4px 8px;text-align:center;font-size:11px;color:var(--text3)">--</td>')+
+        '<td style="padding:4px 8px;text-align:right;font-size:11px;color:var(--text2)">$'+Math.round(costoEstim).toLocaleString('es-AR')+'</td>'+
+        '<td style="padding:4px 8px;text-align:right;font-size:11px;font-weight:700;color:'+(costoReal>costoEstim?'var(--red)':costoReal<costoEstim?'var(--green)':'var(--text)')+'">$'+Math.round(costoReal).toLocaleString('es-AR')+'</td>'+
+        '<td style="padding:4px 8px;text-align:center;font-size:10px;color:'+(diff>0?'var(--red)':diff<0?'var(--green)':'var(--text2)')+'">'+
+          (diff===0?'--':(diff>0?'+':'')+diff)+
+        '</td>'+
+      '</tr>';
+    }).join('');
+
+    // MO POR TAREA
+    var moEstim=0, moReal=0;
+    var rowsMO=(p.tareas||[]).map(function(t){
+      var mo=parseFloat(t.costoMO)||0;
+      var esOK=tareaEstado(t)==='OK';
+      moEstim+=mo;
+      if(esOK) moReal+=mo;
+      return '<tr style="border-bottom:1px solid var(--border)">'+
+        '<td style="padding:4px 8px;font-size:11px;'+(esOK?'':'color:var(--text2)')+'">'+t.desc+'</td>'+
+        '<td style="padding:4px 8px;text-align:center;font-size:11px">'+tareaPill(tareaEstado(t))+'</td>'+
+        '<td style="padding:4px 8px;text-align:center;font-size:11px;color:var(--text2)">'+(t.fechaCumplimiento||'--')+'</td>'+
+        '<td style="padding:4px 8px;text-align:right;font-size:11px">$'+Math.round(mo).toLocaleString('es-AR')+'</td>'+
+        '<td style="padding:4px 8px;text-align:right;font-size:11px;font-weight:700;color:'+(esOK?'var(--green)':'var(--text3)')+'">'+
+          (esOK?'$'+Math.round(mo).toLocaleString('es-AR'):'--')+
+        '</td>'+
+      '</tr>';
+    }).join('');
+
+    var totalEstim=totalMatEstim+moEstim;
+    var totalReal=totalMatReal+moReal;
+    var presup=parseFloat(p.presupuesto)||0;
+    var superaPresup=presup>0&&totalReal>presup;
+
+    h+='<div class="card" style="margin-bottom:14px">'+
+      // HEADER
+      '<div class="ch" style="flex-wrap:wrap;gap:6px">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<span class="mono" style="font-size:11px;color:var(--primary)">'+p.numero+'</span>'+
+          '<strong>'+p.nombre+'</strong>'+
+        '</div>'+
+        '<div style="display:flex;gap:6px;align-items:center">'+
+          proyEstadoPill(p.estado)+
+          (p.prioridad?'<span style="background:'+(p.prioridad==='Alta'?'#3a0000':p.prioridad==='Baja'?'#0a2a0a':'#2a1a00')+';color:'+(p.prioridad==='Alta'?'#ef5350':p.prioridad==='Baja'?'#66bb6a':'#ffb74d')+';padding:1px 8px;border-radius:8px;font-size:10px">'+p.prioridad+'</span>':'')+
+        '</div>'+
+      '</div>'+
+      '<div class="card-body">'+
+
+      // RESUMEN COSTOS
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:14px">'+
+        (presup>0?'<div style="background:var(--surface3);border-radius:6px;padding:8px 10px">'+
+          '<div style="font-size:9px;color:var(--text2)">Presupuesto</div>'+
+          '<div style="font-size:13px;font-weight:700">$'+Math.round(presup).toLocaleString('es-AR')+'</div>'+
+        '</div>':'')+
+        '<div style="background:var(--surface3);border-radius:6px;padding:8px 10px">'+
+          '<div style="font-size:9px;color:var(--text2)">Mat. '+(esFin?'consumidos':'estimados')+'</div>'+
+          '<div style="font-size:13px;font-weight:700;color:var(--blue)">$'+Math.round(totalMatReal).toLocaleString('es-AR')+'</div>'+
+          (totalMatDevuelto>0?'<div style="font-size:9px;color:#66bb6a">Dev: $'+Math.round(totalMatDevuelto).toLocaleString('es-AR')+'</div>':'')+
+        '</div>'+
+        '<div style="background:var(--surface3);border-radius:6px;padding:8px 10px">'+
+          '<div style="font-size:9px;color:var(--text2)">MO ejecutada</div>'+
+          '<div style="font-size:13px;font-weight:700;color:var(--amber)">$'+Math.round(moReal).toLocaleString('es-AR')+'</div>'+
+          '<div style="font-size:9px;color:var(--text2)">de $'+Math.round(moEstim).toLocaleString('es-AR')+' planif.</div>'+
+        '</div>'+
+        '<div style="background:'+(superaPresup?'#3a0000':'#0a2a0a')+';border-radius:6px;padding:8px 10px">'+
+          '<div style="font-size:9px;color:'+(superaPresup?'#ef5350':'#66bb6a')+'">Total '+(esFin?'real':'erogado')+'</div>'+
+          '<div style="font-size:13px;font-weight:700;color:'+(superaPresup?'var(--red)':'var(--green)')+'">$'+Math.round(totalReal).toLocaleString('es-AR')+'</div>'+
+          (presup>0?'<div style="font-size:9px;color:'+(superaPresup?'var(--red)':'#66bb6a')+'">'+
+            (superaPresup?'Exceso: $'+Math.round(totalReal-presup).toLocaleString('es-AR'):'Ahorro: $'+Math.round(presup-totalReal).toLocaleString('es-AR'))+
+          '</div>':'')+
+        '</div>'+
+      '</div>'+
+
+      // MATERIALES
+      ((p.materiales||[]).length?
+        '<div style="font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Materiales</div>'+
+        '<table style="width:100%;border-collapse:collapse;margin-bottom:14px">'+
+          '<thead><tr style="background:var(--surface2)">'+
+            '<th style="padding:4px 8px;font-size:10px">Componente</th>'+
+            '<th style="padding:4px 8px;font-size:10px">Ud</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:center">Estimado</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:center">Real</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:center">Devuelto</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:right">Costo estim.</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:right">Costo real</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:center">Dif.</th>'+
+          '</tr></thead><tbody>'+rowsMat+'</tbody>'+
+          '<tfoot><tr style="background:var(--surface2)">'+
+            '<td colspan="5" style="padding:5px 8px;font-size:11px;font-weight:700">Total materiales</td>'+
+            '<td style="padding:5px 8px;text-align:right;font-size:11px;color:var(--text2)">$'+Math.round(totalMatEstim).toLocaleString('es-AR')+'</td>'+
+            '<td style="padding:5px 8px;text-align:right;font-size:11px;font-weight:700;color:'+(totalMatReal>totalMatEstim?'var(--red)':'var(--green)')+'">$'+Math.round(totalMatReal).toLocaleString('es-AR')+'</td>'+
+            '<td></td>'+
+          '</tr></tfoot>'+
+        '</table>':'<div style="font-size:11px;color:var(--text3);margin-bottom:14px">Sin materiales registrados.</div>')+
+
+      // MO
+      ((p.tareas||[]).length?
+        '<div style="font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Mano de obra por tarea</div>'+
+        '<table style="width:100%;border-collapse:collapse;margin-bottom:10px">'+
+          '<thead><tr style="background:var(--surface2)">'+
+            '<th style="padding:4px 8px;font-size:10px">Tarea</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:center">Estado</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:center">Fecha</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:right">MO planif.</th>'+
+            '<th style="padding:4px 8px;font-size:10px;text-align:right">MO ejecutada</th>'+
+          '</tr></thead><tbody>'+rowsMO+'</tbody>'+
+          '<tfoot><tr style="background:var(--surface2)">'+
+            '<td colspan="3" style="padding:5px 8px;font-size:11px;font-weight:700">Total MO</td>'+
+            '<td style="padding:5px 8px;text-align:right;font-size:11px;color:var(--text2)">$'+Math.round(moEstim).toLocaleString('es-AR')+'</td>'+
+            '<td style="padding:5px 8px;text-align:right;font-size:11px;font-weight:700;color:var(--amber)">$'+Math.round(moReal).toLocaleString('es-AR')+'</td>'+
+          '</tr></tfoot>'+
+        '</table>':'<div style="font-size:11px;color:var(--text3)">Sin tareas registradas.</div>')+
+
+      '</div></div>';
+  });
+
+  reporteContainer('Uso de recursos por proyecto', h);
+}
+
 // =======================================================
 // CONFIG
 // =======================================================
