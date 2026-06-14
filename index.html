@@ -158,6 +158,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Compras</div>
+    <a id="nav-proyectos" onclick="goTo('proyectos')">📁 Proyectos</a>
     <a id="nav-ordenes" onclick="goTo('ordenes')">🛒 Órdenes de compra</a>
     <a id="nav-proveedores" onclick="goTo('proveedores')">🏭 Proveedores</a>
   </div>
@@ -277,6 +278,30 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
       </div></div>
     </div>
 
+    <!-- PROYECTOS -->
+    <div class="panel" id="panel-proyectos">
+      <div id="proj-stats" class="stats"></div>
+      <div class="sbar">
+        <input type="text" id="q-proj" placeholder="🔍 Buscar proyecto..." oninput="renderProyectos()">
+        <select id="proj-estado-filter" onchange="renderProyectos()">
+          <option value="">Todos los estados</option>
+          <option>Planificado</option><option>En curso</option>
+          <option>Pausado</option><option>Finalizado</option><option>Cancelado</option>
+        </select>
+        <button class="btn btn-p" onclick="modalNuevoProyecto()">➕ Nuevo proyecto</button>
+      </div>
+      <div class="card"><div class="twrap">
+        <table>
+          <thead><tr>
+            <th>N°</th><th>Nombre</th><th>Estado</th>
+            <th>Inicio</th><th>Est. fin</th>
+            <th>Materiales</th><th>Valor $</th><th></th>
+          </tr></thead>
+          <tbody id="tbody-proj"></tbody>
+        </table>
+      </div></div>
+    </div>
+
     <!-- ORDENES -->
     <div class="panel" id="panel-ordenes">
       <div class="sbar">
@@ -313,6 +338,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
           <button class="btn" onclick="reporteEntradasPorOrigen()">📥 Entradas por origen</button>
           <button class="btn" onclick="reporteOCporProveedor()">🛒 OC por proveedor</button>
           <button class="btn" onclick="reporteStockPrecios()">💰 Stock con precios</button>
+          <button class="btn" onclick="reporteProyectos()">📁 Avance de proyectos</button>
         </div>
       </div>
       <div id="reporte-resultado"></div>
