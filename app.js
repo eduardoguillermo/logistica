@@ -949,7 +949,7 @@ function reporteUbicaciones(){
           var sc=qty<=0?'var(--red)':qty<=min?'var(--amber)':'var(--green)';
           return '<tr style="border-bottom:1px solid var(--border)">'+
             '<td style="padding:4px 0;font-size:10px;font-family:monospace;color:var(--text2)">'+c.codigo+'</td>'+
-            '<td style="padding:4px 6px;font-size:11px">'+c.desc+(cajon?' <span style="font-size:10px;color:var(--text3)">('+cajon+')</span>':'')+'</td>'+
+            '<td style="padding:4px 6px;font-size:11px">'+c.desc+(c.nroCajon?' '+cajonBadge('',c.nroCajon):'')+'</td>'+
             '<td style="padding:4px 0;font-size:12px;font-weight:700;text-align:right;color:'+sc+'">'+qty+'</td>'+
           '</tr>';
         }).join('')+'</table></div></div>';
