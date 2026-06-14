@@ -1372,6 +1372,71 @@ function guardarNotaProyecto(id){
   setTimeout(function(){abrirProyecto(id);},100);
 }
 
+function initAmCompDropdown(comps){
+  var inp=document.getElementById('am-comp-input');
+  var list=document.getElementById('am-comp-list');
+  var hidden=document.getElementById('am-comp');
+  if(!inp||!list||!hidden) return;
+
+  function renderList(filter){
+    var q=(filter||'').toLowerCase().trim();
+    var filtered=q?comps.filter(function(c){
+      return (c.codigo||'').toLowerCase().indexOf(q)>=0||(c.desc||'').toLowerCase().indexOf(q)>=0;
+    }):comps;
+    if(!filtered.length){
+      list.innerHTML='<div style="padding:8px 10px;color:var(--muted);font-size:12px">Sin resultados</div>';
+    } else {
+      list.innerHTML=filtered.slice(0,80).map(function(c){
+        var stock=stockActual(c.id);
+        var label=(c.codigo||'')+' -- '+(c.desc||'');
+        return '<div data-id="'+c.id+'" tabindex="0" style="padding:7px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border)" '+
+          'onmousedown="event.preventDefault()" '+
+          'onclick="window._amSelectComp('+c.id+',this.dataset.label)" data-label="'+label.replace(/"/g,'&quot;')+'">'+
+          '[Stock: '+stock+'] '+label+'</div>';
+      }).join('');
+    }
+    list.style.display='block';
+  }
+
+  window._amSelectComp=function(id,label){
+    hidden.value=id;
+    inp.value=label;
+    list.style.display='none';
+  };
+
+  inp.addEventListener('input',function(){
+    hidden.value='';
+    renderList(inp.value);
+  });
+  inp.addEventListener('focus',function(){
+    renderList(inp.value);
+  });
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){list.style.display='none';}
+    if(e.key==='ArrowDown'){
+      var items=list.querySelectorAll('[data-id]');
+      if(items.length){items[0].focus();}
+    }
+  });
+  list.addEventListener('keydown',function(e){
+    var focused=document.activeElement;
+    if(e.key==='ArrowDown'&&focused.nextElementSibling){focused.nextElementSibling.focus();}
+    if(e.key==='ArrowUp'){
+      if(focused.previousElementSibling) focused.previousElementSibling.focus();
+      else inp.focus();
+    }
+    if(e.key==='Enter'&&focused.dataset&&focused.dataset.id){focused.click();}
+    if(e.key==='Escape'){list.style.display='none';inp.focus();}
+  });
+  document.addEventListener('click',function handler(e){
+    var wrap=document.getElementById('am-comp-wrap');
+    if(!wrap||!wrap.contains(e.target)){
+      list.style.display='none';
+      document.removeEventListener('click',handler);
+    }
+  });
+  inp.focus();
+}
 function agregarMaterialProyecto(projId){
   var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
   if(!p) return;
@@ -1379,11 +1444,17 @@ function agregarMaterialProyecto(projId){
     var stock=stockActual(c.id);
     return '<option value="'+c.id+'">[Stock: '+stock+'] '+c.codigo+' -- '+c.desc+'</option>';
   }).join('');
+  var _amComps=[...DB.componentes].sort(function(a,b){return (a.desc||'').localeCompare(b.desc||'','es');});
   openModal('Agregar material -- '+p.numero,
     '<div class="fg2">'+
       '<div class="fg full"><label>Componente *</label>'+
-        '<select id="am-comp" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
-          '<option value="">-- seleccionar --</option>'+compOpts+'</select></div>'+
+        '<div id="am-comp-wrap" style="position:relative">'+
+          '<input id="am-comp-input" type="text" placeholder="Buscar componente..." autocomplete="off"'+
+            ' style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;box-sizing:border-box;background:var(--surface2);color:var(--text)">'+
+          '<div id="am-comp-list" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;'+
+            'background:var(--surface2);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)"></div>'+
+          '<input type="hidden" id="am-comp" value="">'+
+        '</div></div>'+
       '<div class="fg"><label>Cantidad *</label><input id="am-cant" type="number" min="1" value="1"></div>'+
     '</div>',
     function(){
@@ -1466,6 +1537,7 @@ function agregarMaterialProyecto(projId){
       setTimeout(function(){abrirProyecto(projId);},100);
       return true;
     });
+  setTimeout(function(){initAmCompDropdown(_amComps);},10);
 }
 
 function quitarMaterialProyecto(projId, idx){
