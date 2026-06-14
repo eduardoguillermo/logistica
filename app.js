@@ -434,6 +434,21 @@ function modalComponente(id){
       (!c?
         '<div class="fg"><label>Stock inicial</label><input id="cp-stock-ini" type="number" min="0" value="0"></div>'+
         '<div class="fg"><label>Motivo</label><input id="cp-stock-mot" value="Stock inicial"></div>':'')+
+      (c&&c.logPrecios&&c.logPrecios.length?
+        '<div style="grid-column:1/-1;background:var(--surface2);border-radius:var(--r);padding:8px 10px;margin-top:4px">'+
+          '<div style="font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Historial de precios</div>'+
+          '<table style="width:100%;border-collapse:collapse">'+
+            c.logPrecios.slice().reverse().slice(0,10).map(function(l){
+              var subio=l.nuevo>l.anterior;
+              return '<tr style="border-bottom:1px solid var(--border)">'+
+                '<td style="padding:3px 6px;font-size:10px;color:var(--text2)">'+l.fecha+'</td>'+
+                '<td style="padding:3px 6px;font-size:10px">'+l.campo+'</td>'+
+                '<td style="padding:3px 6px;font-size:10px;color:var(--text2);text-decoration:line-through">'+l.anterior+'</td>'+
+                '<td style="padding:3px 6px;font-size:10px;font-weight:700;color:'+(subio?'var(--red)':'var(--green)')+'">'+l.nuevo+' '+(subio?'▲':'▼')+'</td>'+
+              '</tr>';
+            }).join('')+
+          '</table>'+
+        '</div>':'')+
     '</div>',
     function(){
       var cod=document.getElementById('cp-cod').value.trim();
@@ -444,9 +459,19 @@ function modalComponente(id){
         c.codigo=cod;c.desc=desc;c.categoria=cat;
         c.unidad=document.getElementById('cp-uni').value;
         c.min=parseFloat(document.getElementById('cp-min').value)||0;
-        c.costo=parseFloat(document.getElementById('cp-costo').value)||0;
+        var nuevoCosto=parseFloat(document.getElementById('cp-costo').value)||0;
+        var nuevoCostoUSD=parseFloat(document.getElementById('cp-costo-usd').value)||0;
+        // Log de cambio de precio si cambia
+        if(!c.logPrecios) c.logPrecios=[];
+        if(nuevoCosto!==parseFloat(c.costo||0)){
+          c.logPrecios.push({fecha:today(),campo:'Costo $',anterior:parseFloat(c.costo||0),nuevo:nuevoCosto});
+        }
+        if(Math.abs(nuevoCostoUSD-(parseFloat(c.costo_usd||0)))>0.01){
+          c.logPrecios.push({fecha:today(),campo:'Costo U$S',anterior:parseFloat(c.costo_usd||0),nuevo:nuevoCostoUSD});
+        }
+        c.costo=nuevoCosto;
         c.precio=c.costo;
-        c.costo_usd=parseFloat(document.getElementById('cp-costo-usd').value)||0;
+        c.costo_usd=nuevoCostoUSD;
         c.area=document.getElementById('cp-area').value;
         c.proveedor=document.getElementById('cp-prov').value;
         c.ubicacion=document.getElementById('cp-ubic').value;
@@ -2693,6 +2718,69 @@ function reporteStockPrecios(){
     '<table><thead><tr><th>Codigo</th><th>Descripcion</th><th>Categoria</th><th style="text-align:center">Stock</th><th style="text-align:right">Costo $</th><th style="text-align:right">Venta $</th><th style="text-align:right">Total costo</th><th style="text-align:right">Total venta</th></tr></thead>'+
     '<tbody>'+rows+'</tbody><tfoot><tr><td colspan="6" style="text-align:right;padding:7px 8px">TOTALES</td><td style="text-align:right;padding:7px 8px">$'+Math.round(totalCosto).toLocaleString('es-AR')+'</td><td style="text-align:right;padding:7px 8px;color:#81C784">$'+Math.round(totalVenta).toLocaleString('es-AR')+'</td></tr></tfoot></table></body></html>');
   w.document.close();
+}
+
+// REPORTE: Historial de precios ================================
+function reporteLogPrecios(){
+  // Filtros
+  var desde=document.getElementById('rlp-desde')?document.getElementById('rlp-desde').value:'';
+  var hasta=document.getElementById('rlp-hasta')?document.getElementById('rlp-hasta').value:'';
+  var qComp=(document.getElementById('rlp-comp')?document.getElementById('rlp-comp').value||'':'').toLowerCase();
+
+  // Recolectar todos los cambios
+  var cambios=[];
+  DB.componentes.forEach(function(c){
+    if(!(c.logPrecios&&c.logPrecios.length)) return;
+    c.logPrecios.forEach(function(l){
+      if(desde&&l.fecha<desde) return;
+      if(hasta&&l.fecha>hasta) return;
+      if(qComp&&!(c.desc||'').toLowerCase().includes(qComp)&&!(c.codigo||'').toLowerCase().includes(qComp)) return;
+      cambios.push({fecha:l.fecha,comp:c,campo:l.campo,anterior:l.anterior,nuevo:l.nuevo});
+    });
+  });
+  cambios.sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
+
+  var filtros=
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end">'+
+      '<div><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Componente</div>'+
+        '<input id="rlp-comp" placeholder="Buscar..." style="padding:6px 9px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:12px" value="'+qComp+'"></div>'+
+      '<div><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Desde</div>'+
+        '<input id="rlp-desde" type="date" style="padding:6px 9px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:12px" value="'+desde+'"></div>'+
+      '<div><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Hasta</div>'+
+        '<input id="rlp-hasta" type="date" style="padding:6px 9px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:12px" value="'+hasta+'"></div>'+
+      '<button class="btn btn-p" onclick="reporteLogPrecios()">Filtrar</button>'+
+    '</div>';
+
+  if(!cambios.length){
+    reporteContainer('Historial de precios', filtros+'<div class="empty">Sin cambios de precios registrados.</div>');
+    return;
+  }
+
+  var h=filtros+
+    '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="background:var(--surface2)">'+
+        '<th style="padding:5px 10px;font-size:10px">Fecha</th>'+
+        '<th style="padding:5px 10px;font-size:10px">Componente</th>'+
+        '<th style="padding:5px 10px;font-size:10px">Campo</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:right">Anterior</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:right">Nuevo</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:right">Variacion</th>'+
+      '</tr></thead><tbody>'+
+      cambios.map(function(x){
+        var subio=x.nuevo>x.anterior;
+        var pct=x.anterior>0?Math.round((x.nuevo-x.anterior)/x.anterior*100):0;
+        return '<tr style="border-bottom:1px solid var(--border)">'+
+          '<td style="padding:6px 10px;font-size:11px;color:var(--text2)">'+x.fecha+'</td>'+
+          '<td style="padding:6px 10px;font-size:11px">'+x.comp.desc+'<br><span style="font-size:10px;color:var(--text2)">'+x.comp.codigo+'</span></td>'+
+          '<td style="padding:6px 10px;font-size:11px">'+x.campo+'</td>'+
+          '<td style="padding:6px 10px;font-size:11px;text-align:right;color:var(--text2);text-decoration:line-through">'+x.anterior+'</td>'+
+          '<td style="padding:6px 10px;font-size:11px;text-align:right;font-weight:700;color:'+(subio?'var(--red)':'var(--green)')+'">'+x.nuevo+'</td>'+
+          '<td style="padding:6px 10px;font-size:11px;text-align:right;color:'+(subio?'var(--red)':'var(--green)')+'">'+(subio?'+':'')+pct+'% '+(subio?'▲':'▼')+'</td>'+
+        '</tr>';
+      }).join('')+
+      '</tbody></table>';
+
+  reporteContainer('Historial de precios ('+cambios.length+' cambios)', h);
 }
 
 // =======================================================
