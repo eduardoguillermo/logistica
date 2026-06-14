@@ -94,6 +94,18 @@ tr:hover td{background:rgba(255,255,255,.02)}
 hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
 .sectitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--primary);margin-bottom:6px}
 
+#login-screen{position:fixed;inset:0;background:#0f0f0f;z-index:10000;display:flex;align-items:center;justify-content:center}
+#login-screen.hidden{display:none}
+#login-box{background:#1a1a1a;border:1px solid #2e2e2e;border-radius:10px;padding:36px 32px;width:320px;display:flex;flex-direction:column;align-items:center;gap:20px}
+#login-box .login-logo{width:60px;height:65px}
+#login-box h2{font-size:14px;font-weight:700;color:#f0f0f0;letter-spacing:2px;text-transform:uppercase}
+#login-box .login-sub{font-size:11px;color:#666;text-align:center}
+#login-box .login-fields{width:100%;display:flex;flex-direction:column;gap:10px}
+#login-box input{width:100%;padding:9px 12px;border:1px solid #2e2e2e;border-radius:6px;background:#242424;color:#f0f0f0;font-size:13px;outline:none}
+#login-box input:focus{border-color:#B71C1C}
+#login-btn{width:100%;padding:10px;background:#B71C1C;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px}
+#login-btn:hover{background:#c62828}
+#login-error{font-size:11px;color:#ef5350;text-align:center;min-height:16px}
 #splash{position:fixed;inset:0;background:#0f0f0f;z-index:9999;display:flex;align-items:center;justify-content:center;transition:opacity .6s ease}
 #splash.fade-out{opacity:0;pointer-events:none}
 #splash-prog{height:100%;width:0%;background:#B71C1C;border-radius:2px;animation:splashprog 7s linear forwards}
@@ -101,7 +113,25 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
 </style>
 </head>
 <body>
-<div id="splash">
+<div id="login-screen">
+  <div id="login-box">
+    <svg class="login-logo" viewBox="0 0 90 100" xmlns="http://www.w3.org/2000/svg">
+      <path d="M45 4 L82 18 L82 52 Q82 76 45 96 Q8 76 8 52 L8 18 Z" fill="#B71C1C"/>
+      <path d="M45 12 L75 24 L75 52 Q75 72 45 88 Q15 72 15 52 L15 24 Z" fill="none" stroke="#fff" stroke-width="1.2" opacity="0.2"/>
+      <text x="45" y="63" font-family="Arial Black,Arial,sans-serif" font-size="36" font-weight="900" fill="#fff" text-anchor="middle">V</text>
+    </svg>
+    <h2>Viking Security</h2>
+    <div class="login-sub">Gestión de Proyectos y Logística</div>
+    <div class="login-fields">
+      <input id="login-user" type="text" placeholder="Usuario" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+      <input id="login-pass" type="password" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')intentarLogin()">
+    </div>
+    <div id="login-error"></div>
+    <button id="login-btn" onclick="intentarLogin()">INGRESAR</button>
+  </div>
+</div>
+
+<div id="splash" style="display:none">
   <div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:22px;padding:40px 32px">
     <svg width="100" height="108" viewBox="0 0 90 100" xmlns="http://www.w3.org/2000/svg">
       <path d="M45 4 L82 18 L82 52 Q82 76 45 96 Q8 76 8 52 L8 18 Z" fill="#B71C1C"/>
@@ -139,11 +169,18 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
   var el=document.getElementById('splash-fecha');
   var hh=String(d.getHours()).padStart(2,'0');var mm=String(d.getMinutes()).padStart(2,'0');
   if(el) el.textContent=dias[d.getDay()]+' '+d.getDate()+' '+meses[d.getMonth()]+'. '+d.getFullYear()+'   '+hh+':'+mm;
+  // El splash se inicia desde intentarLogin(), no automáticamente
+})();
+function iniciarSplash(){
+  var s=document.getElementById('splash');
+  if(s) s.style.display='flex';
+  var prog=document.getElementById('splash-prog');
+  if(prog){prog.style.animation='none';void prog.offsetWidth;prog.style.animation='splashprog 7s linear forwards';}
   setTimeout(function(){
     var s=document.getElementById('splash');
     if(s){s.classList.add('fade-out');setTimeout(function(){s.remove();},650);}
   },7000);
-})();
+}
 </script>
 <nav class="nav">
   <div class="nav-logo">
@@ -174,6 +211,10 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
     <div class="nav-section-title">Sistema</div>
     <a id="nav-config" onclick="goTo('config')">⚙️ Configuración</a>
     <a id="nav-backup" onclick="goTo('backup')">💾 Backup</a>
+    <div style="margin-top:auto;padding:12px 14px;border-top:1px solid var(--border)">
+      <div id="nav-usuario" style="font-size:11px;color:var(--text2);margin-bottom:6px"></div>
+      <button onclick="cerrarSesion()" style="width:100%;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);color:var(--text2);font-size:11px;cursor:pointer">🔒 Cerrar sesión</button>
+    </div>
   </div>
 </nav>
 <div class="main">
