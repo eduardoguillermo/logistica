@@ -317,6 +317,7 @@ function renderStock(){
     else if(_stockSort.col==='area'){va=a.area||'';vb=b.area||'';}
     else if(_stockSort.col==='ubicacion'){va=a.ubicacion||'';vb=b.ubicacion||'';}
     else if(_stockSort.col==='cant'){va=stockActual(a.id);vb=stockActual(b.id);return _stockSort.dir*(va-vb);}
+    else if(_stockSort.col==='valor'){va=stockActual(a.id)*(parseFloat(a.costo)||0);vb=stockActual(b.id)*(parseFloat(b.costo)||0);return _stockSort.dir*(va-vb);}
     return _stockSort.dir*va.localeCompare(vb);
   });
 
@@ -336,7 +337,7 @@ function renderStock(){
     '<div class="stat"><div class="stat-n blue">$'+Math.round(valorTotal).toLocaleString('es-AR')+'</div><div class="stat-l">Valor $</div></div>'+
     '<div class="stat"><div class="stat-n blue">U$S '+Math.round(valorUSD).toLocaleString('es-AR')+'</div><div class="stat-l">Valor U$S</div></div>';
 
-  var scols = {codigo:'Codigo',desc:'Descripcion',categoria:'Categoria',cant:'Cantidad',area:'Area',ubicacion:'Cajonera / Cajon'};
+  var scols = {codigo:'Codigo',desc:'Descripcion',categoria:'Categoria',cant:'Cantidad',area:'Area',ubicacion:'Cajonera / Cajon',valor:'Valor total'};
   Object.keys(scols).forEach(function(col){
     var th = document.getElementById('sth-'+col);
     if(!th) return;
