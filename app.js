@@ -2559,36 +2559,48 @@ function renderDashboard(){
 
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">';
 
-  // Panel proyectos activos
+  // Panel proyectos activos + pausados
   h += '<div class="card">'+
     '<div class="ch"><div class="ct">Proyectos activos</div><button class="btn btn-sm" onclick="goTo(\'proyectos\')">Ver todos</button></div>'+
     '<div class="card-body">';
-  if(!proyActivos.length){
+
+  function filaProyecto(p, esPausado){
+    var tareasP=(p.tareas||[]);
+    var venc=tareasP.filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+    var ok=tareasP.filter(function(t){return tareaEstado(t)==='OK';}).length;
+    var pct=p.fechaInicio&&p.fechaEstFin?Math.min(100,Math.max(0,Math.round((new Date(hoy)-new Date(p.fechaInicio))/(new Date(p.fechaEstFin)-new Date(p.fechaInicio))*100))):0;
+    var tieneEntregaParcial=(p.materiales||[]).some(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
+    var color=esPausado?'var(--text2)':'var(--primary)';
+    var barColor=esPausado?'#555':(pct>=100?'var(--red)':'var(--blue)');
+    return '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+        '<span style="font-size:12px;font-weight:700;cursor:pointer;color:'+color+'" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.nombre+'</span>'+
+        '<span style="font-family:monospace;font-size:10px;color:var(--text2)">'+p.numero+'</span>'+
+      '</div>'+
+      (tareasP.length||tieneEntregaParcial?
+        '<div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">'+
+          (venc?'<span style="background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">'+venc+' vencida'+(venc>1?'s':'')+'</span>':'')+
+          (ok?'<span style="background:var(--green);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">'+ok+' OK</span>':'')+
+          (tareasP.length?'<span style="color:var(--text2);font-size:10px">'+tareasP.length+' tareas</span>':'')+
+          (tieneEntregaParcial?'<span style="background:#3a1a00;color:#ffa726;padding:1px 6px;border-radius:8px;font-size:10px">entrega parcial</span>':'')+
+        '</div>':'')+
+      (p.fechaInicio&&p.fechaEstFin?
+        '<div style="background:var(--surface2);border-radius:3px;height:4px;overflow:hidden"><div style="height:100%;background:'+barColor+';width:'+pct+'%"></div></div>'+
+        '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+pct+'% tiempo &middot; fin: '+p.fechaEstFin+(esPausado&&p.fechaPausa?' &middot; pausado: '+p.fechaPausa:'')+'</div>':'')+'</div>';
+  }
+
+  if(!proyActivos.length && !proyPausados.length){
     h += '<div class="empty">Sin proyectos en curso.</div>';
   } else {
-    proyActivos.slice(0,5).forEach(function(p){
-      var tareasP=(p.tareas||[]);
-      var venc=tareasP.filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
-      var ok=tareasP.filter(function(t){return tareaEstado(t)==='OK';}).length;
-      var pct=p.fechaInicio&&p.fechaEstFin?Math.min(100,Math.max(0,Math.round((new Date(hoy)-new Date(p.fechaInicio))/(new Date(p.fechaEstFin)-new Date(p.fechaInicio))*100))):0;
-      var tieneEntregaParcial=(p.materiales||[]).some(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
-      h += '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
-          '<span style="font-size:12px;font-weight:700;cursor:pointer;color:var(--primary)" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.nombre+'</span>'+
-          '<span style="font-family:monospace;font-size:10px;color:var(--text2)">'+p.numero+'</span>'+
-        '</div>'+
-        (tareasP.length||tieneEntregaParcial?
-          '<div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">'+
-            (venc?'<span style="background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">'+venc+' vencida'+(venc>1?'s':'')+'</span>':'')+
-            (ok?'<span style="background:var(--green);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">'+ok+' OK</span>':'')+
-            (tareasP.length?'<span style="color:var(--text2);font-size:10px">'+tareasP.length+' tareas</span>':'')+
-            (tieneEntregaParcial?'<span style="background:#3a1a00;color:#ffa726;padding:1px 6px;border-radius:8px;font-size:10px">entrega parcial</span>':'')+
-          '</div>':'')+
-        (p.fechaInicio&&p.fechaEstFin?
-          '<div style="background:var(--surface2);border-radius:3px;height:4px;overflow:hidden"><div style="height:100%;background:'+(pct>=100?'var(--red)':'var(--blue)')+';width:'+pct+'%"></div></div>'+
-          '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+pct+'% tiempo &middot; fin: '+p.fechaEstFin+'</div>':'');
-      h += '</div>';
-    });
+    proyActivos.slice(0,5).forEach(function(p){ h += filaProyecto(p, false); });
+    if(proyPausados.length){
+      h += '<div style="display:flex;align-items:center;gap:8px;margin:10px 0 8px">'+
+        '<div style="flex:1;height:1px;background:var(--border)"></div>'+
+        '<span style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">⏸ Pausados</span>'+
+        '<div style="flex:1;height:1px;background:var(--border)"></div>'+
+      '</div>';
+      proyPausados.slice(0,5).forEach(function(p){ h += filaProyecto(p, true); });
+    }
   }
   h += '</div></div>';
 
