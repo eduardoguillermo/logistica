@@ -950,7 +950,7 @@ function abrirProyecto(id){
         (esEnCurso?
           '<button class="btn" onclick="agregarMaterialProyecto('+id+')">➕ Agregar material</button>'+
           '<button class="btn" onclick="iniciarCierreProyecto('+id+')">🏁 Iniciar cierre</button>'+
-          '<button class="btn" style="color:var(--amber)" onclick="cambiarEstadoProyecto('+id+',\'Pausado\')">⏸ Pausar</button>':'')+
+          '<button class="btn" style="color:var(--amber)" onclick="pausarProyecto('+id+')">⏸ Pausar</button>':'')+
         (p.estado==='Pausado'?
           '<button class="btn btn-p" onclick="cambiarEstadoProyecto('+id+',\'En curso\')">▶ Reanudar</button>':'')+
         (esPlanif||esEnCurso||p.estado==='Pausado'?
@@ -1531,6 +1531,45 @@ function iniciarCierreProyecto(id){
       p.estado='Finalizado';p.fechaFinReal=today();
       p.historial.push({fecha:today(),accion:'Proyecto finalizado',estado:'Finalizado'});
       save();renderProyectos();renderStock();return true;
+    });
+}
+
+function pausarProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  var razones=['Espera material','Espera presupuesto','Espera MO','Otro'];
+  openModal('Pausar proyecto -- '+p.numero,
+    '<div class="fg">'+
+      '<label>Razon de la pausa *</label>'+
+      '<select id="pausa-razon" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
+        razones.map(function(r){return '<option value="'+r+'">'+r+'</option>';}).join('')+
+      '</select>'+
+    '</div>'+
+    '<div class="fg" id="pausa-otro-wrap" style="display:none">'+
+      '<label>Especificar</label>'+
+      '<input id="pausa-otro" placeholder="Describir razon...">'+
+    '</div>'+
+    '<script>document.getElementById("pausa-razon").addEventListener("change",function(){document.getElementById("pausa-otro-wrap").style.display=this.value==="Otro"?"block":"none";});<\/script>',
+    function(){
+      var razonEl=document.getElementById('pausa-razon');
+      var razon=razonEl?razonEl.value:'';
+      if(razon==='Otro'){
+        var otro=document.getElementById('pausa-otro');
+        razon='Otro: '+(otro&&otro.value.trim()?otro.value.trim():'sin especificar');
+      }
+      if(!razon){alert('Selecciona una razon.');return false;}
+      p.fechaPausa=today();
+      p.razonPausa=razon;
+      if(p.fechaEstFin){
+        var hoyD=new Date(today());
+        var finD=new Date(p.fechaEstFin);
+        p.diasRestantesAlPausar=Math.max(0,Math.round((finD-hoyD)/(1000*60*60*24)));
+      }
+      p.estado='Pausado';
+      p.historial.push({fecha:today(),accion:'Proyecto pausado. Razon: '+razon+'. Dias restantes: '+(p.diasRestantesAlPausar||0)+'. Fin estimado al pausar: '+(p.fechaEstFin||'--'),estado:'Pausado'});
+      save();cerrarModal();renderProyectos();
+      setTimeout(function(){abrirProyecto(id);},100);
+      return true;
     });
 }
 
@@ -2586,7 +2625,7 @@ function renderDashboard(){
         '</div>':'')+
       (p.fechaInicio&&p.fechaEstFin?
         '<div style="background:var(--surface2);border-radius:3px;height:4px;overflow:hidden"><div style="height:100%;background:'+barColor+';width:'+pct+'%"></div></div>'+
-        '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+pct+'% tiempo &middot; fin: '+p.fechaEstFin+(esPausado&&p.fechaPausa?' &middot; pausado: '+p.fechaPausa:'')+'</div>':'')+'</div>';
+        '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+pct+'% tiempo &middot; fin: '+p.fechaEstFin+(esPausado&&p.fechaPausa?' &middot; pausado: '+p.fechaPausa+(p.razonPausa?' &middot; '+p.razonPausa:''):'')+'</div>':'')+'</div>';
   }
 
   if(!proyActivos.length && !proyPausados.length){
