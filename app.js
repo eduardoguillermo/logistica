@@ -1880,32 +1880,56 @@ function reporteProyectos(){
       // FILA 2: Erogaciones vs presupuesto
       (function(){
         var presup=parseFloat(p.presupuesto)||0;
-        var gastoMO=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
-        var gastoMat=valor;
-        var totalErogado=gastoMat+gastoMO;
-        var pctEjec=presup>0?Math.min(200,Math.round(totalErogado/presup*100)):0;
-        var superaPresup=presup>0&&totalErogado>presup;
-        var diferencia=presup-totalErogado;
-        return '<div style="background:var(--surface2);border:1px solid '+(superaPresup?'var(--red)':'var(--border)')+';border-radius:6px;padding:10px 12px;margin-bottom:10px">'+
-          '<div style="font-size:9px;color:'+(superaPresup?'var(--red)':'var(--text2)')+';text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px">Erogaciones vs presupuesto</div>'+
+        var esPlanif=p.estado==='Planificado';
+        // Estimado (planificado): todos los materiales y toda la MO planificada
+        var estimMat=valor;
+        var estimMO=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+        var estimTotal=estimMat+estimMO;
+        // Erogado real (en curso/pausado/finalizado): materiales entregados + MO de tareas OK
+        var erogMat=(p.materiales||[]).reduce(function(a,m){
+          var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+          var entregado=m.reservado?0:(parseFloat(m.entregado)||parseFloat(m.cant)||0);
+          return a+entregado*(parseFloat(comp.costo)||0);
+        },0);
+        var erogMO=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+        var erogTotal=erogMat+erogMO;
+        // Segun estado usamos estimado o erogado para la comparacion
+        var compMat=esPlanif?estimMat:erogMat;
+        var compMO=esPlanif?estimMO:erogMO;
+        var compTotal=esPlanif?estimTotal:erogTotal;
+        var label=esPlanif?'Estimado':'Erogado';
+        var labelMat=esPlanif?'Mat. estimados':'Mat. entregados';
+        var labelMO=esPlanif?'MO planificada':'MO ejecutada (OK)';
+        var superaPresup=presup>0&&compTotal>presup;
+        var diferencia=presup-compTotal;
+        var pctEjec=presup>0?Math.min(200,Math.round(compTotal/presup*100)):0;
+        return '<div style="background:var(--surface2);border:1px solid '+(superaPresup?'var(--red)':esPlanif?'#3a3a5a':'var(--border)')+';border-radius:6px;padding:10px 12px;margin-bottom:10px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+            '<div style="font-size:9px;color:'+(superaPresup?'var(--red)':'var(--text2)')+';text-transform:uppercase;letter-spacing:.05em;font-weight:700">'+(esPlanif?'Presupuesto estimado':'Erogaciones vs presupuesto')+'</div>'+
+            (esPlanif?'<span style="background:#1a1a3a;color:#8888ff;padding:1px 8px;border-radius:8px;font-size:9px">Estimado -- sin erogaciones reales aun</span>':'')+
+          '</div>'+
           '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-bottom:10px">'+
             '<div style="background:var(--surface3);border-radius:5px;padding:6px 8px">'+
               '<div style="font-size:9px;color:var(--text2)">Presupuesto</div>'+
               '<div style="font-size:13px;font-weight:700">'+(presup?'$'+Math.round(presup).toLocaleString('es-AR'):'--')+'</div>'+
             '</div>'+
             '<div style="background:var(--surface3);border-radius:5px;padding:6px 8px">'+
-              '<div style="font-size:9px;color:var(--text2)">Materiales</div>'+
-              '<div style="font-size:13px;font-weight:700;color:var(--blue)">$'+Math.round(gastoMat).toLocaleString('es-AR')+'</div>'+
+              '<div style="font-size:9px;color:var(--text2)">'+labelMat+'</div>'+
+              '<div style="font-size:13px;font-weight:700;color:var(--blue)">$'+Math.round(compMat).toLocaleString('es-AR')+'</div>'+
             '</div>'+
             '<div style="background:var(--surface3);border-radius:5px;padding:6px 8px">'+
-              '<div style="font-size:9px;color:var(--text2)">MO</div>'+
-              '<div style="font-size:13px;font-weight:700;color:var(--amber)">$'+Math.round(gastoMO).toLocaleString('es-AR')+'</div>'+
+              '<div style="font-size:9px;color:var(--text2)">'+labelMO+'</div>'+
+              '<div style="font-size:13px;font-weight:700;color:var(--amber)">$'+Math.round(compMO).toLocaleString('es-AR')+'</div>'+
             '</div>'+
             '<div style="background:'+(superaPresup?'#3a0000':'#0a2a0a')+';border-radius:5px;padding:6px 8px">'+
-              '<div style="font-size:9px;color:'+(superaPresup?'var(--red)':'var(--green)')+'">Total erogado</div>'+
-              '<div style="font-size:13px;font-weight:700;color:'+(superaPresup?'var(--red)':'var(--green)')+'">$'+Math.round(totalErogado).toLocaleString('es-AR')+'</div>'+
+              '<div style="font-size:9px;color:'+(superaPresup?'var(--red)':'var(--green)')+'">Total '+label+'</div>'+
+              '<div style="font-size:13px;font-weight:700;color:'+(superaPresup?'var(--red)':'var(--green)')+'">$'+Math.round(compTotal).toLocaleString('es-AR')+'</div>'+
             '</div>'+
           '</div>'+
+          (!esPlanif&&estimTotal>erogTotal?
+            '<div style="font-size:9px;color:var(--text2);margin-bottom:8px">'+
+              'Erogado vs estimado: <strong>$'+Math.round(erogTotal).toLocaleString('es-AR')+'</strong> de <strong>$'+Math.round(estimTotal).toLocaleString('es-AR')+'</strong> estimados'+
+            '</div>':'')+
           (presup>0?
             '<div style="margin-bottom:4px">'+
               '<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text2);margin-bottom:3px">'+
@@ -1913,8 +1937,8 @@ function reporteProyectos(){
                 '<span style="color:'+(superaPresup?'var(--red)':'var(--text)')+';font-weight:700">'+pctEjec+'%</span>'+
               '</div>'+
               '<div style="background:var(--surface3);border-radius:3px;height:8px;overflow:hidden;position:relative">'+
-                '<div style="height:100%;background:var(--blue);width:'+Math.min(100,Math.round(gastoMat/presup*100))+'%;position:absolute;left:0"></div>'+
-                '<div style="height:100%;background:var(--amber);width:'+Math.min(100,Math.round(gastoMO/presup*100))+'%;position:absolute;left:'+Math.min(100,Math.round(gastoMat/presup*100))+'%"></div>'+
+                '<div style="height:100%;background:var(--blue);width:'+Math.min(100,Math.round(compMat/presup*100))+'%;position:absolute;left:0"></div>'+
+                '<div style="height:100%;background:var(--amber);width:'+Math.min(100,Math.round(compMO/presup*100))+'%;position:absolute;left:'+Math.min(100,Math.round(compMat/presup*100))+'%"></div>'+
                 (superaPresup?'<div style="position:absolute;right:0;top:0;bottom:0;width:3px;background:var(--red)"></div>':'')+
               '</div>'+
               '<div style="display:flex;gap:10px;margin-top:4px;font-size:9px">'+
