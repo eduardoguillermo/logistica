@@ -2745,6 +2745,8 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(function(){console.log('SW OK');}).catch(function(e){console.log('SW error:',e);});
 }
 goTo('dashboard');
+// Mostrar alerta de tareas proximas tras el splash
+setTimeout(function(){ alertaTareasProximas(); }, 7800);
 
 // =======================================================
 // DASHBOARD
@@ -3087,3 +3089,76 @@ document.addEventListener('click',function(e){
   var gs=document.getElementById('global-search');
   if(sr&&gs&&!sr.contains(e.target)&&e.target!==gs) cerrarBusqueda();
 });
+
+// ALERTA TAREAS PROXIMAS =====================================
+function diasHabilesEntre(desde, hasta){
+  var d = new Date(desde);
+  var h = new Date(hasta);
+  var count = 0;
+  var cur = new Date(d);
+  cur.setDate(cur.getDate()+1); // no contar hoy
+  while(cur <= h){
+    var dow = cur.getDay();
+    if(dow !== 0 && dow !== 6) count++;
+    cur.setDate(cur.getDate()+1);
+  }
+  return count;
+}
+
+function alertaTareasProximas(){
+  var hoy = today();
+  var MARGEN = 5; // dias habiles
+  var items = [];
+
+  (DB.proyectos||[]).forEach(function(p){
+    if(p.estado==='Cancelado'||p.estado==='Finalizado') return;
+    (p.tareas||[]).forEach(function(t){
+      if(!t.fechaCumplimiento) return;
+      if(tareaEstado(t)==='OK'||tareaEstado(t)==='Cancelado') return;
+      var dh = diasHabilesEntre(hoy, t.fechaCumplimiento);
+      var vencida = t.fechaCumplimiento < hoy;
+      if(vencida || dh <= MARGEN){
+        items.push({
+          proy: p,
+          tarea: t,
+          dh: dh,
+          vencida: vencida
+        });
+      }
+    });
+  });
+
+  if(!items.length) return; // nada que informar
+
+  // Ordenar: vencidas primero, luego por fecha
+  items.sort(function(a,b){
+    if(a.vencida && !b.vencida) return -1;
+    if(!a.vencida && b.vencida) return 1;
+    return (a.tarea.fechaCumplimiento||'').localeCompare(b.tarea.fechaCumplimiento||'');
+  });
+
+  var html =
+    '<div style="font-size:11px;color:var(--text2);margin-bottom:12px">Tareas que vencen en los proximos <strong>5 dias habiles</strong> o ya vencidas:</div>'+
+    '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="background:var(--surface2)">'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:left">Proyecto</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:left">Tarea</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Vencimiento</th>'+
+        '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
+      '</tr></thead><tbody>'+
+      items.map(function(it){
+        var color = it.vencida ? 'var(--red)' : it.dh <= 2 ? 'var(--amber)' : 'var(--text2)';
+        var badge = it.vencida ?
+          '<span style="background:#3a0000;color:#ef5350;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">Vencida</span>' :
+          '<span style="background:#2a1a00;color:#ffb74d;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">'+it.dh+' d. habil'+(it.dh!==1?'es':'')+'</span>';
+        return '<tr style="border-bottom:1px solid var(--border)'+(it.vencida?';background:rgba(239,83,80,0.05)':'')+'">' +
+          '<td style="padding:6px 10px;font-size:11px;color:var(--primary);cursor:pointer" onclick="cerrarModal();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+it.proy.id+');},200)">'+it.proy.numero+'<br><span style="font-size:10px;color:var(--text2)">'+it.proy.nombre+'</span></td>'+
+          '<td style="padding:6px 10px;font-size:11px">'+it.tarea.desc+'</td>'+
+          '<td style="padding:6px 10px;text-align:center;font-size:11px;color:'+color+'">'+it.tarea.fechaCumplimiento+'</td>'+
+          '<td style="padding:6px 10px;text-align:center">'+badge+'</td>'+
+        '</tr>';
+      }).join('')+
+      '</tbody></table>';
+
+  openModal('⚠️ Tareas proximas a vencer ('+items.length+')', html, null, true);
+}
