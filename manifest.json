@@ -1,0 +1,9 @@
+{
+  "name": "VSS Logística",
+  "short_name": "Logística",
+  "start_url": "/logistica/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#B71C1C",
+  "icons": []
+}
