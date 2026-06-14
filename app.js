@@ -746,13 +746,35 @@ function proyEstadoPill(e){
   return '<span class="pill '+(mp[e]||'p-x')+'">'+e+'</span>';
 }
 
+var _vistaProyectos = 'activos';
+function setVistaProyectos(v){
+  _vistaProyectos = v;
+  var btns = {activos:'vbtn-activos', finalizados:'vbtn-finalizados', todos:'vbtn-todos'};
+  Object.keys(btns).forEach(function(k){
+    var el = document.getElementById(btns[k]);
+    if(!el) return;
+    if(k === v){
+      el.style.background = 'var(--primary)'; el.style.color = '#fff'; el.style.fontWeight = '700';
+    } else {
+      el.style.background = 'var(--surface2)'; el.style.color = 'var(--text2)'; el.style.fontWeight = 'normal';
+    }
+  });
+  renderProyectos();
+}
+
 function renderProyectos(){
   var q=(document.getElementById('q-proj')?document.getElementById('q-proj').value||'':'').toLowerCase();
-  var fest=document.getElementById('proj-estado-filter')?document.getElementById('proj-estado-filter').value:'';
-  var list=(DB.proyectos||[]).filter(function(p){
-    return (!q||((p.numero||'')+(p.nombre||'')).toLowerCase().includes(q))
-      &&(!fest||p.estado===fest);
+  var estadosActivos=['Planificado','En curso','Pausado'];
+  var estadosHist=['Finalizado','Cancelado'];
+
+  var todosList=(DB.proyectos||[]).filter(function(p){
+    return !q||((p.numero||'')+(p.nombre||'')).toLowerCase().includes(q);
   }).sort(function(a,b){return (b.numero||'').localeCompare(a.numero||'');});
+
+  var listActivos=todosList.filter(function(p){return estadosActivos.indexOf(p.estado)>-1;});
+  var listHist=todosList.filter(function(p){return estadosHist.indexOf(p.estado)>-1;});
+  var list = _vistaProyectos==='activos' ? listActivos :
+             _vistaProyectos==='finalizados' ? listHist : todosList;
 
   var activos=(DB.proyectos||[]).filter(function(p){return p.estado==='En curso';}).length;
   var planif=(DB.proyectos||[]).filter(function(p){return p.estado==='Planificado';}).length;
@@ -779,27 +801,49 @@ function renderProyectos(){
 
   var tb=document.getElementById('tbody-proj');
   if(!list.length){tb.innerHTML='<tr><td colspan="8" class="empty">Sin proyectos registrados.</td></tr>';return;}
-  tb.innerHTML=list.map(function(p){
+
+  var esHist = function(p){ return p.estado==='Finalizado'||p.estado==='Cancelado'; };
+
+  var rows = '';
+  if(_vistaProyectos==='todos'){
+    if(listActivos.length){
+      rows += '<tr><td colspan="8" style="background:#0a1a0a;color:#66bb6a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:5px 10px;border-bottom:1px solid #1a3a1a">▶ Activos ('+listActivos.length+')</td></tr>';
+      rows += listActivos.map(function(p){ return filaProyecto(p, false); }).join('');
+    }
+    if(listHist.length){
+      rows += '<tr><td colspan="8" style="background:#1a0a00;color:#ffb74d;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:5px 10px;border-bottom:1px solid #3a2000;border-top:2px solid #3a2000">📁 Historial -- Finalizados y Cancelados ('+listHist.length+')</td></tr>';
+      rows += listHist.map(function(p){ return filaProyecto(p, true); }).join('');
+    }
+  } else {
+    rows = list.map(function(p){ return filaProyecto(p, esHist(p)); }).join('');
+  }
+  tb.innerHTML = rows;
+
+  function filaProyecto(p, hist){
     var nMat=(p.materiales||[]).length;
     var valor=(p.materiales||[]).reduce(function(a,m){
       var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
       return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
     },0);
     var sobrantes=(p.materiales||[]).filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);}).length;
-    return '<tr>'+
-      '<td class="mono" style="font-size:11px">'+p.numero+'</td>'+
-      '<td><strong>'+p.nombre+'</strong>'+(p.descripcion?'<br><span style="font-size:10px;color:var(--text2)">'+p.descripcion.slice(0,50)+(p.descripcion.length>50?'...':'')+'</span>':'')+'</td>'+
+    var op = hist ? 'opacity:.75' : '';
+    var numColor = hist ? 'color:var(--text2)' : 'color:var(--primary)';
+    var nombreColor = hist ? 'color:var(--text2)' : '';
+    var fechaFin = hist && p.fechaFinReal ? '<span style="color:#66bb6a">'+p.fechaFinReal+'</span>' : (p.fechaEstFin||'--');
+    return '<tr style="border-bottom:1px solid var(--border);'+op+'">'+
+      '<td class="mono" style="font-size:11px;'+numColor+'">'+p.numero+'</td>'+
+      '<td><strong style="'+nombreColor+'">'+p.nombre+'</strong>'+(p.descripcion?'<br><span style="font-size:10px;color:var(--text2)">'+p.descripcion.slice(0,50)+(p.descripcion.length>50?'...':'')+'</span>':'')+'</td>'+
       '<td>'+proyEstadoPill(p.estado)+'</td>'+
-      '<td style="font-size:11px">'+(p.fechaInicio||'--')+'</td>'+
-      '<td style="font-size:11px">'+(p.fechaEstFin||'--')+'</td>'+
-      '<td style="text-align:center">'+nMat+(sobrantes>0&&p.estado==='Finalizado'?'<br><span style="font-size:10px;color:var(--amber)">'+sobrantes+' c/sobrante</span>':'')+'</td>'+
-      '<td style="text-align:right;font-size:12px;font-weight:700;white-space:nowrap">'+(valor>0?'$'+Math.round(valor).toLocaleString('es-AR'):'--')+'</td>'+
+      '<td style="font-size:11px;'+(hist?'color:var(--text2)':'')+'">'+(p.fechaInicio||'--')+'</td>'+
+      '<td style="font-size:11px">'+fechaFin+'</td>'+
+      '<td style="text-align:center;'+(hist?'color:var(--text2)':'')+'">'+nMat+(sobrantes>0&&p.estado==='Finalizado'?'<br><span style="font-size:10px;color:var(--amber)">'+sobrantes+' c/sobrante</span>':'')+'</td>'+
+      '<td style="text-align:right;font-size:12px;font-weight:700;white-space:nowrap;'+(hist?'color:var(--text2)':'')+'">'+(valor>0?'$'+Math.round(valor).toLocaleString('es-AR'):'--')+'</td>'+
       '<td style="display:flex;gap:3px">'+
-        '<button class="btn btn-sm btn-p" onclick="abrirProyecto('+p.id+')">Ver</button>'+
+        '<button class="btn btn-sm '+(hist?'':'btn-p')+'" onclick="abrirProyecto('+p.id+')">Ver</button>'+
         '<button class="btn btn-sm" style="color:var(--red)" onclick="borrarProyecto('+p.id+')">X</button>'+
       '</td>'+
     '</tr>';
-  }).join('');
+  }
 }
 
 function modalNuevoProyecto(){
