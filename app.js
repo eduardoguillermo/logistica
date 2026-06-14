@@ -21,7 +21,8 @@ function defData(){
       razonesPausa: ['Espera material','Espera presupuesto','Espera MO']
     },
     proyectos: [],
-    proyNid: 1
+    proyNid: 1,
+    operarios: []
   };
 }
 
@@ -42,6 +43,7 @@ if(!DB.config.razonesPausa) DB.config.razonesPausa = defData().config.razonesPau
 if(!DB.proyectos) DB.proyectos=[];
 if(!DB.proyNid) DB.proyNid=1;
 if(!DB.movimientosArchivados) DB.movimientosArchivados=[];
+if(!DB.operarios) DB.operarios=[];
 if(!DB.config.usuarios) DB.config.usuarios=[
   {nombre:'admin',password:'admin123',rol:'Administrador'},
   {nombre:'operador',password:'op123',rol:'Operador'}
@@ -93,7 +95,7 @@ function fbox(l,v,mono){ return '<div class="fbox"><div class="fl">'+l+'</div><d
 // =======================================================
 // NAV
 // =======================================================
-const PANELS = ['dashboard','stock','catalogo','movimientos','proyectos','ordenes','proveedores','reportes','config','backup'];
+const PANELS = ['dashboard','stock','catalogo','movimientos','proyectos','ordenes','proveedores','operarios','reportes','config','backup'];
 
 // ============================================================
 // CONTROL DE ACCESO
@@ -196,7 +198,7 @@ function goTo(p){
     var n = document.getElementById('nav-'+x);
     if(n) n.classList.toggle('on', x===p);
   });
-  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
+  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',operarios:'Operarios',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
   document.getElementById('ptitle').textContent = titles[p]||p;
   var pa = document.getElementById('pacts'); pa.innerHTML = '';
   if(p==='stock')       renderStock();
@@ -209,6 +211,7 @@ function goTo(p){
   if(p==='reportes')    cerrarReporte();
   if(p==='config')      renderConfig();
   if(p==='backup')      renderBackupInfo();
+  if(p==='operarios')   renderOperarios();
 }
 
 // =======================================================
@@ -1219,6 +1222,7 @@ function abrirProyecto(id){
       body+='<table style="width:100%;border-collapse:collapse;margin-bottom:12px">'+
         '<thead><tr style="background:var(--surface2)">'+
           '<th style="padding:5px 10px;font-size:10px">Tarea</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Operario</th>'+
           '<th style="padding:5px 10px;font-size:10px;text-align:center">Vencimiento</th>'+
           '<th style="padding:5px 10px;font-size:10px;text-align:center">Peso</th>'+
           '<th style="padding:5px 10px;font-size:10px;text-align:center">Avance</th>'+
@@ -1232,6 +1236,7 @@ function abrirProyecto(id){
           var peso=parseFloat(t.peso)||0;
           return '<tr style="border-bottom:1px solid var(--border)'+(estado==='Atrasado'?';background:rgba(239,83,80,0.06)':'')+'">'+
             '<td style="padding:6px 10px;font-size:12px'+(estado==='OK'?';color:var(--text2);text-decoration:line-through':'')+'">'+t.desc+'</td>'+
+            (function(){var opA=t.operario?(DB.operarios||[]).find(function(o){return o.id===t.operario;}):null;return '<td style="padding:6px 10px;text-align:center;font-size:10px;color:var(--text2)">'+(opA?'<span style="background:var(--surface3);padding:1px 6px;border-radius:8px">'+opA.nombre+'</span>':'--')+'</td>';})()+
             '<td style="padding:6px 10px;text-align:center;font-size:11px;color:'+vencColor+'">'+(t.fechaCumplimiento||'--')+'</td>'+
             '<td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text2)">'+(peso>0?peso+'%':'--')+'</td>'+
             '<td style="padding:6px 10px;min-width:80px">'+
@@ -1358,10 +1363,16 @@ function agregarTareaProyecto(id){
   if(!p) return;
   var pesoUsado=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
   var pesoDisp=Math.max(0,100-pesoUsado);
+  var operariosActivos=(DB.operarios||[]).filter(function(o){return o.activo!==false;});
   openModal('Nueva tarea',
     '<div class="fg2">'+
       '<div class="fg full"><label>Descripcion *</label><input id="nt-desc" placeholder="Descripcion de la tarea..."></div>'+
       '<div class="fg"><label>Fecha de cumplimiento</label><input id="nt-fecha" type="date"></div>'+
+      '<div class="fg"><label>Operario asignado</label>'+
+        '<select id="nt-operario" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option value="">-- Sin asignar --</option>'+
+          operariosActivos.map(function(o){return '<option value="'+o.id+'">'+o.nombre+(o.especialidad?' ('+o.especialidad+')':'')+'</option>';}).join('')+
+        '</select></div>'+
       '<div class="fg"><label>Costo MO ($)</label><input id="nt-costo" type="number" min="0" value="0" placeholder="Monto de mano de obra"></div>'+
       '<div class="fg"><label>Peso en proyecto (%)<span style="font-size:10px;color:var(--text2);margin-left:6px">Disponible: '+pesoDisp+'%</span></label><input id="nt-peso" type="number" min="0" max="100" value="'+pesoDisp+'" placeholder="0"></div>'+
       '<div class="fg"><label>Avance real (%)</label><input id="nt-avance" type="number" min="0" max="100" value="0" placeholder="0"></div>'+
@@ -1379,6 +1390,7 @@ function agregarTareaProyecto(id){
       p.tareas.push({
         desc:desc,
         fechaCumplimiento:document.getElementById('nt-fecha').value,
+        operario:parseInt(document.getElementById('nt-operario')?document.getElementById('nt-operario').value:0)||null,
         costoMO:parseFloat(document.getElementById('nt-costo')?document.getElementById('nt-costo').value:0)||0,
         peso:nuevoPeso,
         avanceReal:parseFloat(document.getElementById('nt-avance')?document.getElementById('nt-avance').value:0)||0,
@@ -1396,10 +1408,16 @@ function editarTareaProyecto(projId, idx){
   var estadoActual=tareaEstado(t);
   var pesoUsado=(p.tareas||[]).reduce(function(a,tt,i){return i===idx?a:a+(parseFloat(tt.peso)||0);},0);
   var pesoDisp=Math.max(0,100-pesoUsado);
+  var operariosActivosE=(DB.operarios||[]).filter(function(o){return o.activo!==false;});
   openModal('Editar tarea',
     '<div class="fg2">'+
       '<div class="fg full"><label>Descripcion *</label><input id="et-desc" value="'+t.desc.replace(/"/g,"'")+'" placeholder="Descripcion de la tarea..."></div>'+
       '<div class="fg"><label>Fecha de cumplimiento</label><input id="et-fecha" type="date" value="'+(t.fechaCumplimiento||'')+'"></div>'+
+      '<div class="fg"><label>Operario asignado</label>'+
+        '<select id="et-operario" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option value="">-- Sin asignar --</option>'+
+          operariosActivosE.map(function(o){return '<option value="'+o.id+'"'+(t.operario===o.id?' selected':'')+'>'+o.nombre+(o.especialidad?' ('+o.especialidad+')':'')+'</option>';}).join('')+
+        '</select></div>'+
       '<div class="fg"><label>Costo MO ($)</label><input id="et-costo" type="number" min="0" value="'+(t.costoMO||0)+'"></div>'+
       '<div class="fg"><label>Peso en proyecto (%)<span style="font-size:10px;color:var(--text2);margin-left:6px">Max disp: '+pesoDisp+'%</span></label><input id="et-peso" type="number" min="0" max="100" value="'+(t.peso||0)+'"></div>'+
       '<div class="fg"><label>Avance real (%)</label><input id="et-avance" type="number" min="0" max="100" value="'+(t.avanceReal||0)+'"></div>'+
@@ -1415,6 +1433,7 @@ function editarTareaProyecto(projId, idx){
       if(!desc){alert('La descripcion es obligatoria.');return false;}
       t.desc=desc;
       t.fechaCumplimiento=document.getElementById('et-fecha').value;
+      t.operario=parseInt(document.getElementById('et-operario')?document.getElementById('et-operario').value:0)||null;
       t.costoMO=parseFloat(document.getElementById('et-costo')?document.getElementById('et-costo').value:0)||0;
       var nuevoPesoE=parseFloat(document.getElementById('et-peso')?document.getElementById('et-peso').value:0)||0;
       var pesoUsadoE=(p.tareas||[]).reduce(function(a,tt,i){return i===idx?a:a+(parseFloat(tt.peso)||0);},0);
@@ -2545,6 +2564,177 @@ function pdfOrden(id){
 }
 
 // =======================================================
+// =======================================================
+// OPERARIOS
+// =======================================================
+function renderOperarios(){
+  var el=document.getElementById('operarios-body');
+  if(!el) return;
+  var lista=(DB.operarios||[]).slice().sort(function(a,b){return (a.nombre||'').localeCompare(b.nombre||'','es');});
+
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
+    '<div>'+
+      '<div style="font-size:16px;font-weight:700">👷 Operarios</div>'+
+      '<div style="font-size:11px;color:var(--text2);margin-top:2px">'+lista.length+' registrado'+(lista.length!==1?'s':'')+'</div>'+
+    '</div>'+
+    '<button class="btn btn-p" onclick="modalOperario(-1)">+ Nuevo operario</button>'+
+  '</div>';
+
+  if(!lista.length){
+    h+='<div class="card"><div class="card-body"><div class="empty">Sin operarios registrados. Agregá el primero.</div></div></div>';
+    el.innerHTML=h;return;
+  }
+
+  // Stats
+  var activos=lista.filter(function(o){return o.activo!==false;}).length;
+  var conTareas=lista.filter(function(o){
+    return (DB.proyectos||[]).some(function(p){
+      return (p.tareas||[]).some(function(t){return t.operario===o.id&&tareaEstado(t)!=='OK'&&tareaEstado(t)!=='Cancelado';});
+    });
+  }).length;
+
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:16px">'+
+    '<div class="stat"><div class="stat-n blue">'+activos+'</div><div class="stat-l">Activos</div></div>'+
+    '<div class="stat"><div class="stat-n amber">'+conTareas+'</div><div class="stat-l">Con tareas pendientes</div></div>'+
+    '<div class="stat"><div class="stat-n">'+lista.length+'</div><div class="stat-l">Total</div></div>'+
+  '</div>';
+
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">';
+
+  lista.forEach(function(o){
+    // Tareas asignadas activas
+    var tareasAsig=[];
+    (DB.proyectos||[]).forEach(function(p){
+      if(p.estado==='Cancelado'||p.estado==='Finalizado') return;
+      (p.tareas||[]).forEach(function(t){
+        if(t.operario===o.id) tareasAsig.push({proy:p,tarea:t,estado:tareaEstado(t)});
+      });
+    });
+    var pendientes=tareasAsig.filter(function(x){return x.estado!=='OK'&&x.estado!=='Cancelado';});
+    var atrasadas=pendientes.filter(function(x){return x.estado==='Atrasado';});
+
+    h+='<div class="card" style="'+(o.activo===false?'opacity:.6':'')+'">'+
+      '<div class="ch">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0">'+
+            (o.nombre||'?')[0].toUpperCase()+
+          '</div>'+
+          '<div>'+
+            '<div style="font-weight:700;font-size:13px">'+o.nombre+'</div>'+
+            '<div style="font-size:11px;color:var(--text2)">'+( o.especialidad||'--')+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:4px;align-items:center">'+
+          '<span style="background:'+(o.activo===false?'#2a2a2a':'#0a2a0a')+';color:'+(o.activo===false?'#666':'#66bb6a')+';padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">'+
+            (o.activo===false?'Inactivo':'Activo')+
+          '</span>'+
+          '<button class="btn btn-sm" onclick="modalOperario('+o.id+')">✏️</button>'+
+          '<button class="btn btn-sm" style="color:var(--red)" onclick="eliminarOperario('+o.id+')">X</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="card-body">'+
+        (o.tel?'<div style="font-size:11px;color:var(--text2);margin-bottom:8px">📞 '+o.tel+'</div>':'')+
+        // Carga de trabajo
+        '<div style="display:flex;gap:8px;margin-bottom:'+(pendientes.length?'10':'0')+'px">'+
+          '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px;text-align:center;flex:1">'+
+            '<div style="font-size:14px;font-weight:700;color:'+(atrasadas.length>0?'var(--red)':pendientes.length>0?'var(--amber)':'var(--green)')+'">'+pendientes.length+'</div>'+
+            '<div style="font-size:9px;color:var(--text2)">Tareas pend.</div>'+
+          '</div>'+
+          '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px;text-align:center;flex:1">'+
+            '<div style="font-size:14px;font-weight:700;color:var(--red)">'+atrasadas.length+'</div>'+
+            '<div style="font-size:9px;color:var(--text2)">Atrasadas</div>'+
+          '</div>'+
+          '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px;text-align:center;flex:1">'+
+            '<div style="font-size:14px;font-weight:700">'+tareasAsig.length+'</div>'+
+            '<div style="font-size:9px;color:var(--text2)">Total asig.</div>'+
+          '</div>'+
+        '</div>'+
+        // Lista de tareas pendientes
+        (pendientes.length?
+          '<div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Tareas pendientes</div>'+
+          pendientes.slice(0,4).map(function(x){
+            return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+x.proy.id+');},200)">'+
+              '<div>'+
+                '<div style="font-size:11px">'+x.tarea.desc.slice(0,35)+(x.tarea.desc.length>35?'...':'')+'</div>'+
+                '<div style="font-size:10px;color:var(--text2)">'+x.proy.numero+'</div>'+
+              '</div>'+
+              '<div style="display:flex;align-items:center;gap:6px">'+
+                (x.tarea.fechaCumplimiento?'<span style="font-size:10px;color:'+(x.estado==='Atrasado'?'var(--red)':'var(--text2)')+'">'+x.tarea.fechaCumplimiento+'</span>':'')+
+                tareaPill(x.estado)+
+              '</div>'+
+            '</div>';
+          }).join('')+
+          (pendientes.length>4?'<div style="font-size:10px;color:var(--text2);margin-top:4px">...y '+(pendientes.length-4)+' más</div>':''):
+          '<div style="font-size:11px;color:var(--green)">Sin tareas pendientes ✓</div>')+
+      '</div>'+
+    '</div>';
+  });
+
+  h+='</div>';
+  el.innerHTML=h;
+}
+
+function modalOperario(id){
+  var o=id>=0?(DB.operarios||[]).find(function(x){return x.id===id;}):null;
+  var especialidades=['Instalacion','Programacion','Mantenimiento','Electricidad','Camaras','Alarmas','Redes','Otro'];
+  openModal(o?'Editar operario':'Nuevo operario',
+    '<div class="fg2">'+
+      '<div class="fg full"><label>Nombre *</label><input id="op-nombre" value="'+(o?o.nombre||'':'')+'" placeholder="Nombre completo"></div>'+
+      '<div class="fg"><label>Especialidad</label>'+
+        '<input id="op-esp" value="'+(o?o.especialidad||'':'')+'" list="op-esp-dl" placeholder="Especialidad">'+
+        '<datalist id="op-esp-dl">'+especialidades.map(function(e){return '<option>'+e+'</option>';}).join('')+'</datalist></div>'+
+      '<div class="fg"><label>Telefono / contacto</label><input id="op-tel" value="'+(o?o.tel||'':'')+'" placeholder="Tel o WhatsApp"></div>'+
+      '<div class="fg full"><label>Notas</label><textarea id="op-notas" rows="2">'+(o?o.notas||'':'')+'</textarea></div>'+
+      '<div class="fg"><label>Estado</label>'+
+        '<select id="op-activo" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option value="1"'+((!o||o.activo!==false)?' selected':'')+'>Activo</option>'+
+          '<option value="0"'+((o&&o.activo===false)?' selected':'')+'>Inactivo</option>'+
+        '</select></div>'+
+    '</div>',
+    function(){
+      var nombre=document.getElementById('op-nombre').value.trim();
+      if(!nombre){alert('El nombre es obligatorio.');return false;}
+      if(o){
+        o.nombre=nombre;
+        o.especialidad=document.getElementById('op-esp').value.trim();
+        o.tel=document.getElementById('op-tel').value.trim();
+        o.notas=document.getElementById('op-notas').value.trim();
+        o.activo=document.getElementById('op-activo').value==='1';
+      } else {
+        if(!DB.operarios) DB.operarios=[];
+        DB.operarios.push({
+          id:DB.nid++,
+          nombre:nombre,
+          especialidad:document.getElementById('op-esp').value.trim(),
+          tel:document.getElementById('op-tel').value.trim(),
+          notas:document.getElementById('op-notas').value.trim(),
+          activo:true
+        });
+      }
+      save();renderOperarios();return true;
+    });
+}
+
+function eliminarOperario(id){
+  var o=(DB.operarios||[]).find(function(x){return x.id===id;});
+  if(!o) return;
+  // Verificar si tiene tareas asignadas
+  var tieneTareas=(DB.proyectos||[]).some(function(p){
+    return (p.tareas||[]).some(function(t){return t.operario===id;});
+  });
+  var msg='Eliminar operario "'+o.nombre+'"?';
+  if(tieneTareas) msg+='\n\nTiene tareas asignadas. Las tareas perderán la asignación pero no se eliminarán.';
+  if(!confirm(msg)) return;
+  // Desasignar tareas
+  if(tieneTareas){
+    (DB.proyectos||[]).forEach(function(p){
+      (p.tareas||[]).forEach(function(t){if(t.operario===id) delete t.operario;});
+    });
+  }
+  DB.operarios=DB.operarios.filter(function(x){return x.id!==id;});
+  save();renderOperarios();
+}
+
 // PROVEEDORES
 // =======================================================
 function renderProveedores(){
