@@ -922,6 +922,11 @@ function abrirProyecto(id){
     return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
   },0);
 
+  // Aviso cierre pendiente: todas las tareas OK y proyecto en curso
+  var tareasTotales=(p.tareas||[]).length;
+  var tareasOKCount=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
+  var todasOK=tareasTotales>0&&tareasOKCount===tareasTotales&&p.estado==='En curso';
+
   // Header
   var body=
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px">'+
@@ -934,6 +939,18 @@ function abrirProyecto(id){
     // Descripcion
     '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text2)">'+
       '<strong style="color:var(--text)">'+p.nombre+'</strong>'+(p.descripcion?'<br>'+p.descripcion:'')+'</div>'+
+    // Aviso cierre pendiente
+    (todasOK?
+      '<div style="background:#0a2a0a;border:1px solid var(--green);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<span style="font-size:18px">✅</span>'+
+          '<div>'+
+            '<div style="font-weight:700;color:#66bb6a;font-size:12px">Todas las tareas completadas</div>'+
+            '<div style="font-size:11px;color:var(--text2);margin-top:2px">El proyecto esta listo para iniciar el cierre.</div>'+
+          '</div>'+
+        '</div>'+
+        '<button class="btn" style="background:var(--green);color:#fff;border-color:var(--green);font-size:12px;padding:6px 14px" onclick="iniciarCierreProyecto('+id+')">🏁 Iniciar cierre</button>'+
+      '</div>':'')+
     // Alcance y prioridad
     ((p.alcance&&(p.alcance.objetivo||p.alcance.incluye||p.alcance.noIncluye))||p.prioridad?
       '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;margin-bottom:12px">'+
@@ -953,17 +970,20 @@ function abrirProyecto(id){
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarMaterialProyecto('+id+')">&#x2795; Material</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarTareaProyecto('+id+')">&#x1F4CB; Tarea</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarAlcanceProyecto('+id+')">&#x1F4CB; Alcance</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
         (esEnCurso?
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarMaterialProyecto('+id+')">&#x2795; Material</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarTareaProyecto('+id+')">&#x1F4CB; Tarea</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="iniciarCierreProyecto('+id+')">&#x1F3C1; Iniciar cierre</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarAlcanceProyecto('+id+')">&#x1F4CB; Alcance</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--amber);border-color:var(--amber)" onclick="pausarProyecto('+id+')">&#x23F8; Pausar</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
         (p.estado==='Pausado'?
           '<button class="btn btn-p" style="font-size:12px;padding:6px 14px" onclick="cambiarEstadoProyecto('+id+",'En curso')"+'>&#x25B6; Reanudar</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarAlcanceProyecto('+id+')">&#x1F4CB; Alcance</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
       '</div>':'')+''+
     // Presupuesto y avance
@@ -1221,11 +1241,17 @@ function agregarTareaProyecto(id){
       var desc=document.getElementById('nt-desc').value.trim();
       if(!desc){alert('La descripcion es obligatoria.');return false;}
       if(!p.tareas) p.tareas=[];
+      var nuevoPeso=parseFloat(document.getElementById('nt-peso')?document.getElementById('nt-peso').value:0)||0;
+      var pesoUsadoActual=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
+      if(pesoUsadoActual+nuevoPeso>100){
+        alert('El peso total de las tareas supera el 100%.\nPeso ya asignado: '+Math.round(pesoUsadoActual)+'%\nDisponible: '+Math.round(100-pesoUsadoActual)+'%');
+        return false;
+      }
       p.tareas.push({
         desc:desc,
         fechaCumplimiento:document.getElementById('nt-fecha').value,
         costoMO:parseFloat(document.getElementById('nt-costo')?document.getElementById('nt-costo').value:0)||0,
-        peso:parseFloat(document.getElementById('nt-peso')?document.getElementById('nt-peso').value:0)||0,
+        peso:nuevoPeso,
         avanceReal:parseFloat(document.getElementById('nt-avance')?document.getElementById('nt-avance').value:0)||0,
         estadoManual:null,
         fechaCreacion:today()
@@ -1261,7 +1287,13 @@ function editarTareaProyecto(projId, idx){
       t.desc=desc;
       t.fechaCumplimiento=document.getElementById('et-fecha').value;
       t.costoMO=parseFloat(document.getElementById('et-costo')?document.getElementById('et-costo').value:0)||0;
-      t.peso=parseFloat(document.getElementById('et-peso')?document.getElementById('et-peso').value:0)||0;
+      var nuevoPesoE=parseFloat(document.getElementById('et-peso')?document.getElementById('et-peso').value:0)||0;
+      var pesoUsadoE=(p.tareas||[]).reduce(function(a,tt,i){return i===idx?a:a+(parseFloat(tt.peso)||0);},0);
+      if(pesoUsadoE+nuevoPesoE>100){
+        alert('El peso total de las tareas supera el 100%.\nPeso de otras tareas: '+Math.round(pesoUsadoE)+'%\nDisponible: '+Math.round(100-pesoUsadoE)+'%');
+        return false;
+      }
+      t.peso=nuevoPesoE;
       t.avanceReal=Math.min(100,Math.max(0,parseFloat(document.getElementById('et-avance')?document.getElementById('et-avance').value:0)||0));
       var est=document.getElementById('et-estado').value;
       t.estadoManual=est||null;
@@ -1313,6 +1345,36 @@ function editarPresupuestoProyecto(id){
     '</div>',
     function(){
       p.presupuesto=parseFloat(document.getElementById('ep-pres').value)||0;
+      p.historial.push({fecha:today(),accion:'Presupuesto actualizado a $'+Math.round(p.presupuesto).toLocaleString('es-AR')});
+      save();cerrarModal();setTimeout(function(){abrirProyecto(id);},100);return true;
+    });
+}
+
+function editarAlcanceProyecto(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p) return;
+  var a=p.alcance||{};
+  openModal('Alcance y prioridad -- '+p.numero,
+    '<div class="fg2">'+
+      '<div class="fg"><label>Prioridad</label>'+
+        '<select id="ea-prior" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          ['Baja','Media','Alta'].map(function(v){return '<option value="'+v+'"'+(p.prioridad===v?' selected':'')+'>'+v+'</option>';}).join('')+
+        '</select></div>'+
+      '<div class="fg full" style="background:var(--surface2);border-radius:var(--r);padding:10px 12px;border:1px solid var(--border)">'+
+        '<div style="font-size:10px;color:var(--primary);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Alcance</div>'+
+        '<div class="fg full"><label>Objetivo</label><textarea id="ea-obj" rows="2" placeholder="Que se quiere lograr...">'+( a.objetivo||'')+'</textarea></div>'+
+        '<div class="fg full"><label>Que incluye</label><textarea id="ea-inc" rows="2" placeholder="Trabajos y responsabilidades incluidas...">'+( a.incluye||'')+'</textarea></div>'+
+        '<div class="fg full"><label>Que NO incluye</label><textarea id="ea-noinc" rows="2" placeholder="Exclusiones explicitas...">'+( a.noIncluye||'')+'</textarea></div>'+
+      '</div>'+
+    '</div>',
+    function(){
+      p.prioridad=document.getElementById('ea-prior').value;
+      p.alcance={
+        objetivo:document.getElementById('ea-obj').value.trim(),
+        incluye:document.getElementById('ea-inc').value.trim(),
+        noIncluye:document.getElementById('ea-noinc').value.trim()
+      };
+      p.historial.push({fecha:today(),accion:'Alcance y prioridad actualizados'});
       save();cerrarModal();setTimeout(function(){abrirProyecto(id);},100);return true;
     });
 }
