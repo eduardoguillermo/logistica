@@ -900,7 +900,7 @@ function abrirProyecto(id){
         (p.alcance&&p.alcance.objetivo?'<div style="margin-bottom:6px"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">Objetivo</div><div style="font-size:12px">'+p.alcance.objetivo+'</div></div>':'')+
         (p.alcance&&p.alcance.incluye?'<div style="margin-bottom:6px"><div style="font-size:10px;color:var(--green);margin-bottom:2px">Incluye</div><div style="font-size:12px">'+p.alcance.incluye+'</div></div>':'')+
         (p.alcance&&p.alcance.noIncluye?'<div><div style="font-size:10px;color:var(--red);margin-bottom:2px">NO incluye</div><div style="font-size:12px">'+p.alcance.noIncluye+'</div></div>':'')+
-      '</div>':'');
+      '</div>':'')+''+
     // BARRA DE ACCIONES STICKY
     (!esFin?
       '<div style="position:sticky;top:0;z-index:10;background:#1e1e2e;border-bottom:2px solid var(--primary);padding:10px 14px;margin:-12px -16px 16px -16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
