@@ -875,24 +875,35 @@ function abrirProyecto(id){
     body+='<button class="btn" style="margin-bottom:14px" onclick="agregarMaterialProyecto('+id+')">➕ Agregar material al plan</button>';
   }
 
+  // Historial
   // Notas y comentarios
+  var etapaColors={'Planificacion':'#1565C0','Ejecucion':'#2E7D32','Cierre':'#6A1B9A'};
   body+='<hr class="div"><div class="sectitle" style="margin-bottom:8px">Notas y comentarios</div>';
-  // Notas existentes
   if((p.notas||[]).length){
     body+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">';
     (p.notas||[]).slice().reverse().forEach(function(n){
-      body+='<div style="background:var(--surface2);border-radius:var(--r);padding:8px 12px;border-left:3px solid var(--primary)">'+
-        '<div style="font-size:10px;color:var(--text2);font-family:monospace;margin-bottom:4px">'+n.fecha+' '+n.hora+'</div>'+
+      var color=etapaColors[n.etapa]||'#555';
+      body+='<div style="background:var(--surface2);border-radius:var(--r);padding:8px 12px;border-left:3px solid '+color+'">'+
+        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">'+
+          '<span style="font-family:monospace;font-size:10px;color:var(--text2)">'+n.fecha+' '+n.hora+'</span>'+
+          '<span style="background:'+color+';color:#fff;padding:1px 8px;border-radius:10px;font-size:10px;font-weight:700">'+n.etapa+'</span>'+
+        '</div>'+
         '<div style="font-size:12px;color:var(--text);white-space:pre-wrap">'+n.texto+'</div>'+
       '</div>';
     });
     body+='</div>';
   } else {
-    body+='<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Sin notas registradas.</div>';
+    body+='<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Sin notas registradas.</p>';
   }
-  // Nueva nota
   body+=
-    '<div style="display:flex;flex-direction:column;gap:6px">'+
+    '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">'+
+      '<div style="display:flex;gap:8px">'+
+        '<select id="proj-nota-etapa" style="padding:6px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option value="Planificacion">Planificacion</option>'+
+          '<option value="Ejecucion"'+(p.estado==='En curso'?' selected':'')+'>Ejecucion</option>'+
+          '<option value="Cierre"'+(p.estado==='Finalizado'?' selected':'')+'>Cierre</option>'+
+        '</select>'+
+      '</div>'+
       '<textarea id="proj-nota-txt" rows="3" placeholder="Escribi una nota o comentario..." '+
         'style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text);resize:vertical;font-family:inherit;width:100%"></textarea>'+
       '<button class="btn btn-p" style="align-self:flex-end" onclick="guardarNotaProyecto('+id+')">💬 Guardar nota</button>'+
@@ -917,12 +928,18 @@ function guardarNotaProyecto(id){
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
   var txt=document.getElementById('proj-nota-txt');
+  var etapaEl=document.getElementById('proj-nota-etapa');
   if(!txt||!txt.value.trim()){alert('Escribi algo antes de guardar.');return;}
   if(!p.notas) p.notas=[];
   var d=new Date();
   var hh=String(d.getHours()).padStart(2,'0');
   var mm=String(d.getMinutes()).padStart(2,'0');
-  p.notas.push({fecha:today(),hora:hh+':'+mm,texto:txt.value.trim()});
+  p.notas.push({
+    fecha:today(),
+    hora:hh+':'+mm,
+    etapa:etapaEl?etapaEl.value:'Ejecucion',
+    texto:txt.value.trim()
+  });
   save();
   cerrarModal();
   setTimeout(function(){abrirProyecto(id);},100);
