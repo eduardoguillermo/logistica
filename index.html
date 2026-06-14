@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VSS Logística</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#B71C1C">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#B71C1C;--primary-dark:#7f0000;
+  --bg:#0f0f0f;--surface:#1a1a1a;--surface2:#242424;
+  --border:#2e2e2e;--text:#f0f0f0;--text2:#aaa;--text3:#666;
+  --green:#4caf50;--red:#ef5350;--amber:#ffa726;--blue:#42a5f5;
+  --r:6px;
+}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;display:flex;height:100vh;overflow:hidden}
+/* NAV */
+.nav{width:200px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.nav-logo{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.nav-logo .logo-icon{width:28px;height:28px;background:var(--primary);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.nav-logo .logo-text{font-weight:700;font-size:13px;color:var(--text)}
+.nav-logo .logo-sub{font-size:10px;color:var(--text2)}
+.nav-section{padding:8px 0}
+.nav-section-title{padding:4px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
+.nav a{display:flex;align-items:center;gap:8px;padding:7px 14px;font-size:12px;color:var(--text2);text-decoration:none;border-radius:0;cursor:pointer;transition:background .15s}
+.nav a:hover{background:var(--surface2);color:var(--text)}
+.nav a.on{background:rgba(183,28,28,.18);color:var(--primary);font-weight:600}
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
+.ptitle{font-weight:700;font-size:15px}
+.pacts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.content{flex:1;overflow-y:auto;padding:16px 18px}
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px}
+.ch{padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.ct{font-weight:700;font-size:13px}
+.card-body{padding:12px 14px}
+/* SBAR */
+.sbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.sbar input,.sbar select{padding:6px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)}
+/* BUTTONS */
+.btn{padding:6px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;font-size:12px;font-family:inherit;transition:background .15s}
+.btn:hover{background:var(--surface)}
+.btn-p{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-p:hover{background:var(--primary-dark)}
+.btn-g{background:#1b5e20;color:#fff;border-color:#1b5e20}
+.btn-d{background:#7f0000;color:#fff;border-color:#7f0000}
+.btn-sm{padding:4px 8px;font-size:11px}
+/* TABLES */
+.twrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--surface2);padding:7px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer}
+td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.empty{padding:20px;text-align:center;color:var(--text3);font-size:12px}
+.mono{font-family:monospace}
+/* PILLS */
+.pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.p-g{background:#1b5e20;color:#a5d6a7}.p-r{background:#7f0000;color:#ef9a9a}
+.p-a{background:#e65100;color:#ffcc80}.p-b{background:#0d47a1;color:#90caf9}
+.p-x{background:#37474f;color:#b0bec5}.p-p{background:#4a148c;color:#ce93d8}
+/* STATS */
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;min-width:110px;text-align:center}
+.stat-n{font-size:20px;font-weight:700;margin-bottom:2px}
+.stat-l{font-size:10px;color:var(--text2);text-transform:uppercase}
+.green{color:var(--green)}.red{color:var(--red)}.amber{color:var(--amber)}.blue{color:var(--blue)}
+/* MODAL */
+.moverlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);width:100%;max-width:680px;max-height:90vh;display:flex;flex-direction:column}
+.mhead{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.mhead h3{font-size:14px;font-weight:700}
+.mbody{padding:16px;overflow-y:auto;flex:1}
+.mfoot{padding:10px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+/* FORMS */
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.fg label{font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase}
+.fg input,.fg select,.fg textarea{padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);font-size:12px;font-family:inherit}
+.fg textarea{resize:vertical;min-height:60px}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.full{grid-column:1/-1}
+/* PANELS */
+.panel{display:none}.panel.on{display:block}
+/* FBOX */
+.fbox{background:var(--surface2);border-radius:var(--r);padding:7px 10px;margin-bottom:6px}
+.fl{font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:2px}
+.fv{font-size:12px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
+hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
+.sectitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--primary);margin-bottom:6px}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-logo">
+    <div class="logo-icon">📦</div>
+    <div><div class="logo-text">VSS Logística</div><div class="logo-sub">Viking Security</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Inventario</div>
+    <a id="nav-stock" onclick="goTo('stock')">📊 Stock</a>
+    <a id="nav-catalogo" onclick="goTo('catalogo')">🗂️ Catálogo</a>
+    <a id="nav-movimientos" onclick="goTo('movimientos')">🔄 Movimientos</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Compras</div>
+    <a id="nav-ordenes" onclick="goTo('ordenes')">🛒 Órdenes de compra</a>
+    <a id="nav-proveedores" onclick="goTo('proveedores')">🏭 Proveedores</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Análisis</div>
+    <a id="nav-reportes" onclick="goTo('reportes')">📈 Reportes</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Sistema</div>
+    <a id="nav-config" onclick="goTo('config')">⚙️ Configuración</a>
+    <a id="nav-backup" onclick="goTo('backup')">💾 Backup</a>
+  </div>
+</nav>
+<div class="main">
+  <div class="topbar">
+    <div class="ptitle" id="ptitle">Stock</div>
+    <div class="pacts" id="pacts"></div>
+  </div>
+  <div class="content">
+
+    <!-- STOCK -->
+    <div class="panel on" id="panel-stock">
+      <div id="stock-stats" class="stats"></div>
+      <div class="sbar">
+        <input type="text" id="q-stock" placeholder="🔍 Buscar..." oninput="renderStock()">
+        <select id="stock-cat-filter" onchange="renderStock()"></select>
+        <select id="stock-area-filter" onchange="renderStock()">
+          <option value="">Todas las áreas</option>
+          <option>Fábrica</option><option>Mantenimiento</option><option>Instalacion</option>
+        </select>
+        <button class="btn" id="btn-critico" onclick="toggleStockCritico()">⚠️ Solo críticos</button>
+        <button class="btn btn-sm" onclick="pdfStock()">🖨️ PDF</button>
+      </div>
+      <div class="card"><div class="twrap">
+        <table>
+          <colgroup><col style="width:9%"><col style="width:22%"><col style="width:10%"><col style="width:8%"><col style="width:7%"><col style="width:11%"><col style="width:10%"><col style="width:8%"><col style="width:6%"><col style="width:9%"><col style="width:9%"><col style="width:4%"></colgroup>
+          <thead><tr>
+            <th id="sth-codigo" onclick="sortStock('codigo')">Código</th>
+            <th id="sth-desc" onclick="sortStock('desc')">Descripción</th>
+            <th id="sth-categoria" onclick="sortStock('categoria')">Categoría</th>
+            <th id="sth-cant" onclick="sortStock('cant')">Stock</th>
+            <th>Mín.</th>
+            <th id="sth-ubicacion" onclick="sortStock('ubicacion')">Cajonera / Cajón</th>
+            <th>Proveedor</th>
+            <th id="sth-area" onclick="sortStock('area')">Área</th>
+            <th>Est.</th>
+            <th>Costo $</th>
+            <th>Costo U$S</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="tbody-stock"></tbody>
+        </table>
+      </div></div>
+    </div>
+
+    <!-- CATALOGO -->
+    <div class="panel" id="panel-catalogo">
+      <div class="sbar">
+        <input type="text" id="q-cat" placeholder="🔍 Buscar..." oninput="renderCatalogo()">
+        <select id="cat-filter" onchange="renderCatalogo()"></select>
+        <select id="cat-prov-filter" onchange="renderCatalogo()"></select>
+        <span id="cat-count" style="font-size:11px;color:var(--text2)"></span>
+        <button class="btn btn-p" onclick="modalComponente(null)">➕ Nuevo</button>
+        <button class="btn btn-sm" onclick="pdfCatalogo()">🖨️ PDF</button>
+      </div>
+      <div class="card"><div class="twrap">
+        <table>
+          <thead><tr>
+            <th id="th-codigo" onclick="sortCatalogo('codigo')">Código</th>
+            <th id="th-desc" onclick="sortCatalogo('desc')">Descripción</th>
+            <th id="th-categoria" onclick="sortCatalogo('categoria')">Categoría</th>
+            <th>Unidad</th><th>Mín.</th>
+            <th id="th-stock" onclick="sortCatalogo('stock')">Stock</th>
+            <th id="th-area" onclick="sortCatalogo('area')">Área</th>
+            <th id="th-ubicacion" onclick="sortCatalogo('ubicacion')">Cajonera / Cajón</th>
+            <th>Proveedor</th><th>Est.</th><th></th>
+          </tr></thead>
+          <tbody id="tbody-cat"></tbody>
+        </table>
+      </div></div>
+    </div>
+
+    <!-- MOVIMIENTOS -->
+    <div class="panel" id="panel-movimientos">
+      <div class="sbar">
+        <input type="text" id="q-mov" placeholder="🔍 Buscar..." oninput="renderMovimientos()">
+        <select id="mov-tipo-filter" onchange="renderMovimientos()">
+          <option value="">Todos los tipos</option>
+          <option>Entrada</option><option>Salida manual</option><option>Salida instalación</option>
+        </select>
+        <select id="mov-motivo-filter" onchange="renderMovimientos()">
+          <option value="">Todos los motivos</option>
+        </select>
+        <select id="mov-origen-filter" onchange="renderMovimientos()">
+          <option value="">Todos los orígenes</option>
+        </select>
+        <button class="btn btn-p" onclick="modalMovimiento('Entrada')">📥 Entrada</button>
+        <button class="btn" onclick="modalMovimiento('Salida manual')">📤 Salida</button>
+        <button class="btn btn-g" onclick="modalMovimiento('Salida instalación')">🔧 Instalación</button>
+      </div>
+      <div class="card"><div class="twrap">
+        <table>
+          <thead><tr>
+            <th>Fecha</th><th>Tipo</th><th>Código</th><th>Componente</th>
+            <th>Cant.</th><th>Est.</th><th>Precio $</th><th>Precio U$S</th>
+            <th>Referencia</th><th>Nota</th><th>Origen</th><th></th>
+          </tr></thead>
+          <tbody id="tbody-mov"></tbody>
+        </table>
+      </div></div>
+    </div>
+
+    <!-- ORDENES -->
+    <div class="panel" id="panel-ordenes">
+      <div class="sbar">
+        <input type="text" id="q-ord" placeholder="🔍 Buscar..." oninput="renderOrdenes()">
+        <button class="btn btn-p" onclick="modalOrden()">➕ Nueva OC</button>
+        <button class="btn" onclick="generarOrdenAutomatica()">⚡ Auto</button>
+      </div>
+      <div class="card"><div class="twrap">
+        <table>
+          <thead><tr>
+            <th>Fecha</th><th>N°</th><th>Estado</th><th>Items</th>
+            <th>Proveedor</th><th>Total</th><th>Obs.</th><th></th>
+          </tr></thead>
+          <tbody id="tbody-ord"></tbody>
+        </table>
+      </div></div>
+    </div>
+
+    <!-- PROVEEDORES -->
+    <div class="panel" id="panel-proveedores">
+      <div id="prov-body"></div>
+    </div>
+
+    <!-- REPORTES -->
+    <div class="panel" id="panel-reportes">
+      <div class="card">
+        <div class="ch"><div class="ct">📈 Reportes de logística</div></div>
+        <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" onclick="reporteStockCritico()">⚠️ Stock crítico</button>
+          <button class="btn" onclick="reporteInventario()">📦 Inventario por área</button>
+          <button class="btn" onclick="reporteMovimientos()">🔄 Movimientos 30 días</button>
+          <button class="btn" onclick="reporteUbicaciones()">📦 Ubicaciones / Cajoneras</button>
+          <button class="btn" onclick="reporteSalidasPorMotivo()">📤 Salidas por motivo</button>
+          <button class="btn" onclick="reporteEntradasPorOrigen()">📥 Entradas por origen</button>
+          <button class="btn" onclick="reporteOCporProveedor()">🛒 OC por proveedor</button>
+          <button class="btn" onclick="reporteStockPrecios()">💰 Stock con precios</button>
+        </div>
+      </div>
+      <div id="reporte-resultado"></div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="panel" id="panel-config">
+      <div class="card">
+        <div class="ch"><div class="ct">⚙️ Configuración</div></div>
+        <div class="card-body" id="config-body"></div>
+      </div>
+    </div>
+
+    <!-- BACKUP -->
+    <div class="panel" id="panel-backup">
+      <div class="card">
+        <div class="ch"><div class="ct">📊 Estado de datos</div></div>
+        <div class="card-body" id="backup-info"></div>
+      </div>
+      <div class="card">
+        <div class="ch"><div class="ct">🔄 Migrar desde CRM Viking</div></div>
+        <div class="card-body">
+          <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Copia catálogo, movimientos, órdenes, proveedores y configuración desde el CRM (vss4) a esta app. Los datos actuales de logística serán reemplazados.</p>
+          <button class="btn btn-p" onclick="migrarDesdeVSS4()">📥 Migrar desde CRM</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><div class="ct">💾 Exportar / Importar</div></div>
+        <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-p" onclick="exportarJSON()">⬇️ Exportar JSON</button>
+          <button class="btn" onclick="exportarADrive()">☁️ Drive</button>
+          <label class="btn" style="cursor:pointer">📂 Importar JSON<input type="file" accept=".json" style="display:none" onchange="importarJSON(this)"></label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><div class="ct">🗑️ Datos</div></div>
+        <div class="card-body" style="display:flex;gap:8px">
+          <button class="btn btn-d" onclick="borrarTodo()">🗑️ Borrar todo</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div id="mbox"></div>
+<script src="app.js"></script>
+</body>
+</html>
