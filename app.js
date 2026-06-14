@@ -72,7 +72,7 @@ function fbox(l,v,mono){ return '<div class="fbox"><div class="fl">'+l+'</div><d
 // =======================================================
 // NAV
 // =======================================================
-const PANELS = ['stock','catalogo','movimientos','proyectos','ordenes','proveedores','reportes','config','backup'];
+const PANELS = ['dashboard','stock','catalogo','movimientos','proyectos','ordenes','proveedores','reportes','config','backup'];
 
 function goTo(p){
   PANELS.forEach(function(x){
@@ -81,12 +81,13 @@ function goTo(p){
     var n = document.getElementById('nav-'+x);
     if(n) n.classList.toggle('on', x===p);
   });
-  var titles = {stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
+  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
   document.getElementById('ptitle').textContent = titles[p]||p;
   var pa = document.getElementById('pacts'); pa.innerHTML = '';
   if(p==='stock')       renderStock();
   if(p==='catalogo')    renderCatalogo();
   if(p==='movimientos') renderMovimientos();
+  if(p==='dashboard')   renderDashboard();
   if(p==='proyectos')   renderProyectos();
   if(p==='ordenes')     renderOrdenes();
   if(p==='proveedores') renderProveedores();
@@ -2160,4 +2161,250 @@ function borrarTodo(){
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js').then(function(){console.log('SW OK');}).catch(function(e){console.log('SW error:',e);});
 }
-goTo('proyectos');
+goTo('dashboard');
+
+// =======================================================
+// DASHBOARD
+// =======================================================
+function renderDashboard(){
+  var el = document.getElementById('dashboard-body');
+  if(!el) return;
+  var hoy = today();
+
+  // ── Tareas vencidas en proyectos activos ──
+  var tareasVencidas = [];
+  (DB.proyectos||[]).filter(function(p){return p.estado==='En curso'||p.estado==='Planificado';}).forEach(function(p){
+    (p.tareas||[]).forEach(function(t,ti){
+      if(tareaEstado(t)==='Atrasado'){
+        tareasVencidas.push({proj:p, tarea:t, idx:ti});
+      }
+    });
+  });
+
+  // ── Proyectos activos ──
+  var proyActivos = (DB.proyectos||[]).filter(function(p){return p.estado==='En curso';});
+  var proyPlanif  = (DB.proyectos||[]).filter(function(p){return p.estado==='Planificado';});
+
+  // ── Stock crítico ──
+  var stockCritico = DB.componentes.filter(function(c){
+    return stockActual(c.id)<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;
+  });
+
+  // ── OC pendientes ──
+  var ocPendientes = (DB.ordenes||[]).filter(function(o){return o.estado==='Pendiente'||o.estado==='Enviada';});
+
+  // ── Últimos 5 movimientos ──
+  var ultMovs = [...(DB.movimientos||[])].sort(function(a,b){return (b.fecha||'').localeCompare(a.fecha||'');}).slice(0,5);
+
+  var h = '';
+
+  // Alerta tareas vencidas
+  if(tareasVencidas.length){
+    h += '<div style="background:#7f0000;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<span style="font-size:20px">⚠️</span>'+
+        '<div>'+
+          '<div style="font-weight:700;color:#fff;font-size:13px">'+tareasVencidas.length+' tarea'+(tareasVencidas.length>1?'s':'')+' vencida'+(tareasVencidas.length>1?'s':'')+' en proyectos activos</div>'+
+          '<div style="font-size:11px;color:#ffaaaa;margin-top:2px">'+tareasVencidas.slice(0,3).map(function(tv){return tv.proj.numero+': '+tv.tarea.desc.slice(0,30);}).join(' · ')+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<button class="btn btn-sm" style="background:#fff;color:#7f0000;font-weight:700" onclick="goTo(\'proyectos\')">Ver proyectos</button>'+
+    '</div>';
+  }
+
+  // Grid principal stats
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px">'+
+    '<div class="stat" style="cursor:pointer" onclick="goTo(\'proyectos\')">'+
+      '<div class="stat-n blue">'+proyActivos.length+'</div><div class="stat-l">Proyectos en curso</div></div>'+
+    '<div class="stat" style="cursor:pointer" onclick="goTo(\'proyectos\')">'+
+      '<div class="stat-n amber">'+proyPlanif.length+'</div><div class="stat-l">En planificacion</div></div>'+
+    (tareasVencidas.length?
+      '<div class="stat" style="cursor:pointer;border-color:#7f0000" onclick="goTo(\'proyectos\')">'+
+        '<div class="stat-n red">'+tareasVencidas.length+'</div><div class="stat-l">Tareas vencidas</div></div>':'')+ 
+    '<div class="stat" style="cursor:pointer" onclick="goTo(\'stock\')">'+
+      '<div class="stat-n '+(stockCritico.length>0?'red':'green')+'">'+stockCritico.length+'</div><div class="stat-l">Stock critico</div></div>'+
+    '<div class="stat" style="cursor:pointer" onclick="goTo(\'ordenes\')">'+
+      '<div class="stat-n">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>'+
+    '<div class="stat">'+
+      '<div class="stat-n">'+DB.componentes.length+'</div><div class="stat-l">Componentes</div></div>'+
+  '</div>';
+
+  // Grid dos columnas
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">';
+
+  // Col 1: Proyectos en curso
+  h += '<div class="card">'+
+    '<div class="ch"><div class="ct">📁 Proyectos activos</div><button class="btn btn-sm" onclick="goTo(\'proyectos\')">Ver todos</button></div>'+
+    '<div class="card-body">';
+  if(!proyActivos.length){
+    h += '<div class="empty">Sin proyectos en curso.</div>';
+  } else {
+    proyActivos.slice(0,5).forEach(function(p){
+      var tareasP = (p.tareas||[]);
+      var venc = tareasP.filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+      var ok   = tareasP.filter(function(t){return tareaEstado(t)==='OK';}).length;
+      var pct  = p.fechaInicio&&p.fechaEstFin?Math.min(100,Math.max(0,Math.round((new Date(hoy)-new Date(p.fechaInicio))/(new Date(p.fechaEstFin)-new Date(p.fechaInicio))*100))):0;
+      h += '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'+
+          '<span style="font-size:12px;font-weight:700;cursor:pointer;color:var(--primary)" onclick="abrirProyecto('+p.id+')">'+p.nombre+'</span>'+
+          '<span style="font-family:monospace;font-size:10px;color:var(--text2)">'+p.numero+'</span>'+
+        '</div>'+
+        (tareasP.length?
+          '<div style="display:flex;gap:6px;margin-bottom:4px">'+
+            (venc?'<span style="background:var(--red);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">'+venc+' vencida'+(venc>1?'s':'')+'</span>':'')+
+            (ok?'<span style="background:var(--green);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px">'+ok+' OK</span>':'')+
+            '<span style="color:var(--text2);font-size:10px">'+tareasP.length+' tareas</span>'+
+          '</div>':'')+
+        (p.fechaInicio&&p.fechaEstFin?
+          '<div style="background:var(--surface2);border-radius:3px;height:4px;overflow:hidden">'+
+            '<div style="height:100%;background:'+(pct>=100?'var(--red)':'var(--blue)')+';width:'+pct+'%"></div>'+
+          '</div>'+
+          '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+pct+'% del tiempo · fin est.: '+p.fechaEstFin+'</div>':'');
+      h += '</div>';
+    });
+  }
+  h += '</div></div>';
+
+  // Col 2: Stock crítico
+  h += '<div class="card">'+
+    '<div class="ch"><div class="ct">⚠️ Stock critico</div><button class="btn btn-sm" onclick="goTo(\'stock\')">Ver stock</button></div>'+
+    '<div class="card-body">';
+  if(!stockCritico.length){
+    h += '<div class="empty" style="color:var(--green)">✔ Sin componentes criticos.</div>';
+  } else {
+    h += '<table style="width:100%;border-collapse:collapse">';
+    stockCritico.slice(0,8).forEach(function(c){
+      var cant = stockActual(c.id);
+      h += '<tr style="border-bottom:1px solid var(--border)">'+
+        '<td style="padding:5px 0;font-size:11px">'+c.desc+'</td>'+
+        '<td style="padding:5px 6px;text-align:center;font-weight:700;color:'+(cant<=0?'var(--red)':'var(--amber)')+'">'+cant+'</td>'+
+        '<td style="padding:5px 0;font-size:10px;color:var(--text2)">min '+(c.min||0)+'</td>'+
+      '</tr>';
+    });
+    h += '</table>';
+    if(stockCritico.length>8) h += '<div style="font-size:11px;color:var(--text2);margin-top:6px">...y '+(stockCritico.length-8)+' mas</div>';
+  }
+  h += '</div></div>';
+
+  h += '</div>'; // fin grid 2 col
+
+  // Últimos movimientos
+  h += '<div class="card" style="margin-top:14px">'+
+    '<div class="ch"><div class="ct">🔄 Ultimos movimientos</div><button class="btn btn-sm" onclick="goTo(\'movimientos\')">Ver todos</button></div>'+
+    '<div class="card-body">';
+  if(!ultMovs.length){
+    h += '<div class="empty">Sin movimientos.</div>';
+  } else {
+    h += '<table style="width:100%;border-collapse:collapse">';
+    ultMovs.forEach(function(m){
+      var comp = DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{desc:'?',unidad:''};
+      var esEnt = m.tipo==='Entrada';
+      h += '<tr style="border-bottom:1px solid var(--border)">'+
+        '<td style="padding:5px 0;font-size:11px;color:var(--text2)">'+m.fecha+'</td>'+
+        '<td style="padding:5px 8px;font-size:11px">'+comp.desc+'</td>'+
+        '<td style="padding:5px 0;font-size:11px;font-weight:700;color:'+(esEnt?'var(--green)':'var(--red)')+'">'+
+          (esEnt?'+':'-')+(m.cant||0)+' '+(comp.unidad||'')+'</td>'+
+        '<td style="padding:5px 0;font-size:10px;color:var(--text2)">'+(m.nota||m.origen||'')+'</td>'+
+      '</tr>';
+    });
+    h += '</table>';
+  }
+  h += '</div></div>';
+
+  el.innerHTML = h;
+}
+
+// =======================================================
+// BUSQUEDA GLOBAL
+// =======================================================
+function busquedaGlobal(q){
+  var el = document.getElementById('search-results');
+  if(!el) return;
+  if(!q||q.length<2){el.style.display='none';el.innerHTML='';return;}
+  var ql = q.toLowerCase();
+  var results = [];
+
+  // Proyectos
+  (DB.proyectos||[]).forEach(function(p){
+    if((p.nombre+p.numero+(p.descripcion||'')).toLowerCase().includes(ql)){
+      results.push({tipo:'Proyecto',icon:'📁',label:p.nombre,sub:p.numero+' · '+p.estado,
+        action:function(){goTo('proyectos');setTimeout(function(){abrirProyecto(p.id);},200);}});
+    }
+  });
+
+  // Componentes
+  DB.componentes.forEach(function(c){
+    if((c.codigo+c.desc+(c.proveedor||'')+(c.ubicacion||'')).toLowerCase().includes(ql)){
+      results.push({tipo:'Componente',icon:'📦',label:c.codigo+' — '+c.desc,
+        sub:(c.categoria||'')+(c.ubicacion?' · '+c.ubicacion:''),
+        action:function(){goTo('catalogo');}});
+    }
+  });
+
+  // Proveedores
+  DB.proveedores.forEach(function(p){
+    if((p.empresa+(p.contacto||'')+(p.rubro||'')).toLowerCase().includes(ql)){
+      results.push({tipo:'Proveedor',icon:'🏭',label:p.empresa,
+        sub:(p.rubro||'')+(p.contacto?' · '+p.contacto:''),
+        action:function(){goTo('proveedores');}});
+    }
+  });
+
+  // Movimientos
+  DB.movimientos.filter(function(m){
+    var comp=DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{};
+    return (comp.desc+comp.codigo+(m.ref||'')+(m.nota||'')+(m.origen||'')).toLowerCase().includes(ql);
+  }).slice(0,3).forEach(function(m){
+    var comp=DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{desc:'?'};
+    results.push({tipo:'Movimiento',icon:'🔄',label:m.tipo+' — '+comp.desc,
+      sub:m.fecha+(m.nota?' · '+m.nota:''),
+      action:function(){goTo('movimientos');}});
+  });
+
+  // Ordenes
+  DB.ordenes.forEach(function(o){
+    if(((o.numero||'')+(o.proveedor||'')).toLowerCase().includes(ql)){
+      results.push({tipo:'OC',icon:'🛒',label:(o.numero||'OC')+' — '+(o.proveedor||''),
+        sub:o.estado+' · '+o.fecha,
+        action:function(){goTo('ordenes');}});
+    }
+  });
+
+  if(!results.length){
+    el.innerHTML='<div style="padding:10px 14px;color:var(--text2);font-size:12px">Sin resultados para "'+q+'"</div>';
+  } else {
+    el.innerHTML = results.slice(0,10).map(function(r,i){
+      return '<div class="search-item" id="sri-'+i+'" style="padding:8px 14px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">'+
+        '<span style="font-size:16px">'+r.icon+'</span>'+
+        '<div style="min-width:0">'+
+          '<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+r.label+'</div>'+
+          '<div style="font-size:10px;color:var(--text2)">'+r.tipo+' · '+r.sub+'</div>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+    results.slice(0,10).forEach(function(r,i){
+      var d=document.getElementById('sri-'+i);
+      if(d) d.onclick=function(){r.action();cerrarBusqueda();};
+    });
+  }
+  el.style.display='block';
+}
+
+function mostrarResultados(){
+  var q=document.getElementById('global-search');
+  if(q&&q.value.length>=2) busquedaGlobal(q.value);
+}
+
+function cerrarBusqueda(){
+  var el=document.getElementById('search-results');
+  if(el){el.innerHTML='';el.style.display='none';}
+  var inp=document.getElementById('global-search');
+  if(inp) inp.value='';
+}
+
+// Cerrar busqueda al hacer click fuera
+document.addEventListener('click',function(e){
+  var sr=document.getElementById('search-results');
+  var gs=document.getElementById('global-search');
+  if(sr&&gs&&!sr.contains(e.target)&&e.target!==gs) cerrarBusqueda();
+});
