@@ -187,8 +187,12 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
           <option value="">Todas las áreas</option>
           <option>Fábrica</option><option>Mantenimiento</option><option>Instalacion</option>
         </select>
+        <select id="stock-cajon-filter" onchange="renderStock()">
+          <option value="">Todas las cajoneras</option>
+        </select>
         <button class="btn" id="btn-critico" onclick="toggleStockCritico()">⚠️ Solo críticos</button>
         <button class="btn btn-sm" onclick="pdfStock()">🖨️ PDF</button>
+        <button class="btn btn-sm" onclick="goTo('reportes');setTimeout(reporteUbicaciones,100)" style="color:var(--green);border-color:var(--green)">📦 Cajoneras</button>
       </div>
       <div class="card"><div class="twrap">
         <table>
@@ -218,6 +222,9 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
         <input type="text" id="q-cat" placeholder="🔍 Buscar..." oninput="renderCatalogo()">
         <select id="cat-filter" onchange="renderCatalogo()"></select>
         <select id="cat-prov-filter" onchange="renderCatalogo()"></select>
+        <select id="cat-cajon-filter" onchange="renderCatalogo()">
+          <option value="">Todas las cajoneras</option>
+        </select>
         <span id="cat-count" style="font-size:11px;color:var(--text2)"></span>
         <button class="btn btn-p" onclick="modalComponente(null)">➕ Nuevo</button>
         <button class="btn btn-sm" onclick="pdfCatalogo()">🖨️ PDF</button>
