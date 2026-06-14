@@ -806,14 +806,26 @@ function modalNuevoProyecto(){
   var num=getNumProj();
   openModal('Nuevo proyecto',
     '<div class="fg2">'+
-      '<div class="fg"><label>N° Proyecto</label><div style="padding:7px 9px;font-family:monospace;font-weight:700;color:var(--primary)">'+num+'</div></div>'+
+      '<div class="fg"><label>N\u00b0 Proyecto</label><div style="padding:7px 9px;font-family:monospace;font-weight:700;color:var(--primary)">'+num+'</div></div>'+
       '<div class="fg"><label>Estado inicial</label><div style="padding:7px 9px;font-size:12px;color:var(--text2)">Planificado</div></div>'+
       '<div class="fg full"><label>Nombre *</label><input id="np-nombre" placeholder="Nombre del proyecto"></div>'+
-      '<div class="fg full"><label>Descripcion</label><textarea id="np-desc" rows="3" placeholder="Descripcion del proyecto..."></textarea></div>'+
+      '<div class="fg"><label>Prioridad</label>'+
+        '<select id="np-prioridad" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option value="Media">Media</option>'+
+          '<option value="Alta">Alta</option>'+
+          '<option value="Baja">Baja</option>'+
+        '</select></div>'+
+      '<div class="fg full" style="background:var(--surface2);border-radius:var(--r);padding:10px 12px;border:1px solid var(--border)">'+
+        '<div style="font-size:10px;color:var(--primary);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Alcance del proyecto</div>'+
+        '<div class="fg full"><label>Objetivo</label><textarea id="np-objetivo" rows="2" placeholder="Que se quiere lograr con este proyecto?"></textarea></div>'+
+        '<div class="fg full"><label>Que incluye</label><textarea id="np-incluye" rows="2" placeholder="Trabajos, entregas y responsabilidades incluidas..."></textarea></div>'+
+        '<div class="fg full"><label>Que NO incluye</label><textarea id="np-noincluye" rows="2" placeholder="Exclusiones explicitas del alcance..."></textarea></div>'+
+      '</div>'+
+      '<div class="fg full"><label>Descripcion</label><textarea id="np-desc" rows="2" placeholder="Descripcion general del proyecto..."></textarea></div>'+
       '<div class="fg"><label>Fecha inicio</label><input id="np-finicio" type="date" value="'+today()+'"></div>'+
       '<div class="fg"><label>Fecha estimada fin</label><input id="np-festfin" type="date"></div>'+
       '<div class="fg"><label>Presupuesto total ($)</label><input id="np-presupuesto" type="number" min="0" value="0" placeholder="0"></div>'+
-      '<div class="fg full"><label>OneDrive — link carpeta de fotos/docs</label>'+
+      '<div class="fg full"><label>OneDrive -- link carpeta de fotos/docs</label>'+
         '<input id="np-onedrive" placeholder="https://onedrive.live.com/..." type="url"></div>'+
     '</div>',
     function(){
@@ -824,6 +836,12 @@ function modalNuevoProyecto(){
         numero:num,
         nombre:nombre,
         descripcion:document.getElementById('np-desc').value,
+        prioridad:document.getElementById('np-prioridad')?document.getElementById('np-prioridad').value:'Media',
+        alcance:{
+          objetivo:document.getElementById('np-objetivo')?document.getElementById('np-objetivo').value.trim():'',
+          incluye:document.getElementById('np-incluye')?document.getElementById('np-incluye').value.trim():'',
+          noIncluye:document.getElementById('np-noincluye')?document.getElementById('np-noincluye').value.trim():''
+        },
         estado:'Planificado',
         fechaInicio:document.getElementById('np-finicio').value,
         fechaEstFin:document.getElementById('np-festfin').value,
@@ -841,7 +859,6 @@ function modalNuevoProyecto(){
       DB.proyectos.unshift(proj);
       save();
       renderProyectos();
-      // Abrir directamente para agregar materiales
       setTimeout(function(){abrirProyecto(proj.id);},200);
       return true;
     });
@@ -873,6 +890,17 @@ function abrirProyecto(id){
     // Descripcion
     '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text2)">'+
       '<strong style="color:var(--text)">'+p.nombre+'</strong>'+(p.descripcion?'<br>'+p.descripcion:'')+'</div>'+
+    // Alcance y prioridad
+    ((p.alcance&&(p.alcance.objetivo||p.alcance.incluye||p.alcance.noIncluye))||p.prioridad?
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;margin-bottom:12px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+          '<div style="font-size:10px;color:var(--primary);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Alcance</div>'+
+          (p.prioridad?'<span style="background:'+(p.prioridad==='Alta'?'#3a0000':p.prioridad==='Baja'?'#0a2a0a':'#2a1a00')+';color:'+(p.prioridad==='Alta'?'#ef5350':p.prioridad==='Baja'?'#66bb6a':'#ffb74d')+';padding:2px 10px;border-radius:8px;font-size:10px;font-weight:700">'+p.prioridad+'</span>':'')+
+        '</div>'+
+        (p.alcance&&p.alcance.objetivo?'<div style="margin-bottom:6px"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">Objetivo</div><div style="font-size:12px">'+p.alcance.objetivo+'</div></div>':'')+
+        (p.alcance&&p.alcance.incluye?'<div style="margin-bottom:6px"><div style="font-size:10px;color:var(--green);margin-bottom:2px">Incluye</div><div style="font-size:12px">'+p.alcance.incluye+'</div></div>':'')+
+        (p.alcance&&p.alcance.noIncluye?'<div><div style="font-size:10px;color:var(--red);margin-bottom:2px">NO incluye</div><div style="font-size:12px">'+p.alcance.noIncluye+'</div></div>':'')+
+      '</div>':'');
     // BARRA DE ACCIONES STICKY
     (!esFin?
       '<div style="position:sticky;top:0;z-index:10;background:#1e1e2e;border-bottom:2px solid var(--primary);padding:10px 14px;margin:-12px -16px 16px -16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
