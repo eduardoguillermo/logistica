@@ -137,7 +137,8 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
   var dias=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   var meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   var el=document.getElementById('splash-fecha');
-  if(el) el.textContent=dias[d.getDay()]+' '+d.getDate()+' '+meses[d.getMonth()]+'. '+d.getFullYear();
+  var hh=String(d.getHours()).padStart(2,'0');var mm=String(d.getMinutes()).padStart(2,'0');
+  if(el) el.textContent=dias[d.getDay()]+' '+d.getDate()+' '+meses[d.getMonth()]+'. '+d.getFullYear()+'   '+hh+':'+mm;
   setTimeout(function(){
     var s=document.getElementById('splash');
     if(s){s.classList.add('fade-out');setTimeout(function(){s.remove();},650);}
