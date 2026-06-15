@@ -4028,7 +4028,7 @@ function renderDashboard(){
   if(!proyControl.length){
     h += '<div class="empty">Sin proyectos activos.</div>';
   } else {
-    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">';
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px">';
 
     proyControl.forEach(function(p){
       var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
@@ -4061,12 +4061,12 @@ function renderDashboard(){
         // CH igual que operarios
         '<div class="ch">'+
           '<div style="display:flex;align-items:center;gap:10px">'+
-            '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0;letter-spacing:-1px">'+
-              (p.numero||'').replace('PRY-','')+
+            '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">'+
+              (p.numero||'').slice(-2)+
             '</div>'+
-            '<div>'+
-              '<div style="font-weight:700;font-size:13px">'+p.nombre+'</div>'+
-              '<div style="font-size:11px;color:var(--text2)">'+p.numero+(p.prioridad?' &middot; '+p.prioridad:'')+'</div>'+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.nombre+'</div>'+
+              '<div style="font-size:11px;color:var(--text2);margin-top:2px">'+p.numero+(p.prioridad?' &middot; '+p.prioridad:'')+'</div>'+
             '</div>'+
           '</div>'+
           '<div style="display:flex;gap:4px;align-items:center">'+
