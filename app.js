@@ -170,10 +170,17 @@ function esAdmin(){return _usuarioActual&&_usuarioActual.rol==='Administrador';}
 function esOperador(){return _usuarioActual&&_usuarioActual.rol==='Operador';}
 
 function _aplicarRestriccionesNav(){
-  if(esAdmin()) return; // admin ve todo
-  // Ocultar config y backup para operador
-  var ocultar=['nav-config','nav-backup'];
-  ocultar.forEach(function(id){
+  var restringidos=['nav-config','nav-backup'];
+  if(esAdmin()){
+    // Restaurar todo para admin
+    restringidos.forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.style.display='';
+    });
+    return;
+  }
+  // Ocultar para operador
+  restringidos.forEach(function(id){
     var el=document.getElementById(id);
     if(el) el.style.display='none';
   });
