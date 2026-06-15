@@ -115,7 +115,7 @@ function fbox(l,v,mono){ return '<div class="fbox"><div class="fl">'+l+'</div><d
 // =======================================================
 // NAV
 // =======================================================
-const PANELS = ['dashboard','stock','catalogo','movimientos','proyectos','ordenes','proveedores','operarios','reportes','config','backup'];
+const PANELS = ['dashboard','stock','catalogo','movimientos','proyectos','dashproy','ordenes','proveedores','operarios','reportes','config','backup'];
 
 // ============================================================
 // CONTROL DE ACCESO
@@ -255,7 +255,7 @@ function goTo(p){
     var n = document.getElementById('nav-'+x);
     if(n) n.classList.toggle('on', x===p);
   });
-  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',operarios:'Operarios',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
+  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',dashproy:'Dashboard de proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',operarios:'Operarios',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
   document.getElementById('ptitle').textContent = titles[p]||p;
   var pa = document.getElementById('pacts'); pa.innerHTML = '';
   if(p==='stock')       renderStock();
@@ -269,6 +269,7 @@ function goTo(p){
   if(p==='config')      renderConfig();
   if(p==='backup')      renderBackupInfo();
   if(p==='operarios')   renderOperarios();
+  if(p==='dashproy')    renderDashProy();
 }
 
 // =======================================================
@@ -962,6 +963,14 @@ function setVistaProyectos(v){
 }
 
 function renderProyectos(){
+  // Toggle Lista / Dashboard
+  var toggleEl=document.getElementById('proy-body-toggle');
+  if(toggleEl) toggleEl.innerHTML=
+    '<div style="display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px;width:fit-content">'+
+      '<button onclick="renderProyectos()" style="padding:6px 16px;font-size:12px;border:none;cursor:pointer;background:var(--primary);color:#fff;font-weight:700">☰ Lista</button>'+
+      '<button onclick="goTo(\'dashproy\')" style="padding:6px 16px;font-size:12px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text2)">📊 Dashboard</button>'+
+    '</div>';
+
   var q=(document.getElementById('q-proj')?document.getElementById('q-proj').value||'':'').toLowerCase();
   var estadosActivos=['Planificado','En curso','Pausado'];
   var estadosHist=['Finalizado','Cancelado'];
@@ -3533,6 +3542,187 @@ function reporteUsoRecursos(){
   });
 
   reporteContainer('Uso de recursos por proyecto', h);
+}
+
+// =======================================================
+// DASHBOARD DE PROYECTOS
+// =======================================================
+function renderDashProy(){
+  var el=document.getElementById('dashproy-body');
+  if(!el) return;
+  var hoy=today();
+  var lista=proyectosDelOperario().filter(function(p){return p.estado!=='Cancelado';})
+    .sort(function(a,b){return (a.fechaInicio||'9999').localeCompare(b.fechaInicio||'9999');});
+
+  var h='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">'+
+    '<div style="font-size:16px;font-weight:700">📊 Dashboard de proyectos</div>'+
+    '<div style="display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden">'+
+      '<button onclick="goTo(\'proyectos\')" style="padding:6px 16px;font-size:12px;border:none;cursor:pointer;background:var(--surface2);color:var(--text2)">☰ Lista</button>'+
+      '<button style="padding:6px 16px;font-size:12px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--primary);color:#fff;font-weight:700">📊 Dashboard</button>'+
+    '</div>'+
+  '</div>';
+
+  if(!lista.length){h+='<div class="empty">Sin proyectos registrados.</div>';el.innerHTML=h;return;}
+
+  // ── 1. BURBUJAS DE ESTADO ─────────────────────────────
+  var conteos={Planificado:0,'En curso':0,Pausado:0,Finalizado:0};
+  lista.forEach(function(p){if(conteos[p.estado]!==undefined) conteos[p.estado]++;});
+  var colEstado={Planificado:'var(--amber)','En curso':'var(--blue)',Pausado:'#888',Finalizado:'var(--green)'};
+
+  h+='<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Estado general</div></div><div class="card-body">'+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;justify-content:center;padding:8px 0">';
+  Object.keys(conteos).forEach(function(est){
+    var n=conteos[est];
+    var size=Math.max(60,Math.min(120,40+n*20));
+    h+='<div style="display:flex;flex-direction:column;align-items:center;gap:8px">'+
+      '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+colEstado[est]+';display:flex;align-items:center;justify-content:center;font-size:'+Math.max(18,size*0.35)+'px;font-weight:900;color:#fff;opacity:'+(n>0?1:0.25)+';transition:all .3s">'+n+'</div>'+
+      '<div style="font-size:11px;color:var(--text2);text-align:center">'+est+'</div>'+
+    '</div>';
+  });
+  h+='</div></div></div>';
+
+  // ── 2. BARRAS DE AVANCE FISICO vs TIEMPO ─────────────
+  var activos=lista.filter(function(p){return p.estado==='En curso'||p.estado==='Pausado';});
+  if(activos.length){
+    h+='<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Avance físico vs tiempo — proyectos activos</div></div><div class="card-body">';
+    activos.forEach(function(p){
+      var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
+      var avF=pesoTotal>0?Math.round((p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;},0)):null;
+      var avT=null;
+      if(p.fechaInicio&&p.fechaEstFin){
+        var ini=new Date(p.fechaInicio),fin=new Date(p.fechaEstFin),hoyD=new Date(hoy);
+        avT=Math.min(100,Math.max(0,Math.round((hoyD-ini)/(fin-ini)*100)));
+      }
+      var diff=avF!==null&&avT!==null?avF-avT:null;
+      var semColor=diff===null?'var(--text3)':diff>=5?'var(--green)':diff>=-10?'var(--amber)':'var(--red)';
+      var semLabel=diff===null?'--':diff>=5?'↑ Adelantado':diff>=-10?'→ En línea':'↓ Atrasado';
+      h+='<div style="margin-bottom:14px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'+
+          '<span style="font-size:12px;font-weight:700;cursor:pointer;color:var(--primary)" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.nombre+'</span>'+
+          '<span style="font-size:11px;font-weight:700;color:'+semColor+'">'+semLabel+'</span>'+
+        '</div>'+
+        // Barra fisica
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">'+
+          '<div style="font-size:10px;color:var(--text2);width:90px;text-align:right;flex-shrink:0">Físico</div>'+
+          '<div style="flex:1;background:var(--surface3);border-radius:3px;height:10px;overflow:hidden">'+
+            (avF!==null?'<div style="height:100%;background:'+(avF>=100?'var(--green)':'var(--blue)')+';width:'+avF+'%;transition:width .3s"></div>':'')+
+          '</div>'+
+          '<div style="font-size:11px;font-weight:700;width:36px;color:'+(avF===null?'var(--text3)':'var(--text)')+';">'+(avF===null?'--':avF+'%')+'</div>'+
+        '</div>'+
+        // Barra tiempo
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<div style="font-size:10px;color:var(--text2);width:90px;text-align:right;flex-shrink:0">Tiempo</div>'+
+          '<div style="flex:1;background:var(--surface3);border-radius:3px;height:10px;overflow:hidden">'+
+            (avT!==null?'<div style="height:100%;background:'+(avT>=100?'var(--red)':'#555')+';width:'+avT+'%;transition:width .3s"></div>':'')+
+          '</div>'+
+          '<div style="font-size:11px;font-weight:700;width:36px;color:'+(avT===null?'var(--text3)':avT>=100?'var(--red)':'var(--text2)')+';">'+(avT===null?'--':avT+'%')+'</div>'+
+        '</div>'+
+      '</div>';
+    });
+    h+='</div></div>';
+  }
+
+  // ── 3. GANTT SIMPLIFICADO ─────────────────────────────
+  var conFechas=lista.filter(function(p){return p.fechaInicio&&p.fechaEstFin;});
+  if(conFechas.length){
+    // Calcular rango total
+    var fechaMin=conFechas.reduce(function(a,p){return p.fechaInicio<a?p.fechaInicio:a;},conFechas[0].fechaInicio);
+    var fechaMax=conFechas.reduce(function(a,p){
+      var f=p.fechaFinReal||p.fechaEstFin;
+      return f>a?f:a;
+    },conFechas[0].fechaEstFin);
+    var tMin=new Date(fechaMin).getTime();
+    var tMax=new Date(fechaMax).getTime();
+    var rango=tMax-tMin||1;
+    var hoyPct=Math.min(100,Math.max(0,Math.round((new Date(hoy).getTime()-tMin)/rango*100)));
+
+    h+='<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Gantt — línea de tiempo</div></div><div class="card-body">';
+    h+='<div style="position:relative;margin-bottom:8px">';
+    // Línea de hoy
+    h+='<div style="position:absolute;left:'+hoyPct+'%;top:0;bottom:0;width:2px;background:var(--primary);z-index:2;pointer-events:none">'+
+      '<div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--primary);font-weight:700;white-space:nowrap">HOY</div>'+
+    '</div>';
+
+    conFechas.forEach(function(p){
+      var ini=new Date(p.fechaInicio).getTime();
+      var fin=new Date(p.fechaFinReal||p.fechaEstFin).getTime();
+      var left=Math.round((ini-tMin)/rango*100);
+      var width=Math.max(1,Math.round((fin-ini)/rango*100));
+      var colEstadoG={Planificado:'var(--amber)','En curso':'var(--blue)',Pausado:'#666',Finalizado:'var(--green)'};
+      var col=colEstadoG[p.estado]||'var(--text3)';
+
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+        '<div style="font-size:11px;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--text)" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)" title="'+p.nombre+'">'+p.nombre+'</div>'+
+        '<div style="flex:1;position:relative;height:20px;background:var(--surface3);border-radius:3px;overflow:visible">'+
+          '<div style="position:absolute;left:'+left+'%;width:'+width+'%;height:100%;background:'+col+';border-radius:3px;opacity:0.85;min-width:3px" title="'+p.fechaInicio+' → '+(p.fechaFinReal||p.fechaEstFin)+'"></div>'+
+        '</div>'+
+        '<div style="font-size:10px;color:var(--text2);width:70px;flex-shrink:0;text-align:right">'+( p.fechaFinReal||p.fechaEstFin)+'</div>'+
+      '</div>';
+    });
+
+    h+='</div>';
+    // Eje de fechas
+    h+='<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:4px;padding-left:168px;padding-right:78px">'+
+      '<span>'+fechaMin+'</span><span>'+fechaMax+'</span>'+
+    '</div>';
+    h+='</div></div>';
+  }
+
+  // ── 4. LÍNEA DE TIEMPO DE VENCIMIENTOS ───────────────
+  var tareasFuturas=[];
+  lista.filter(function(p){return p.estado==='En curso'||p.estado==='Planificado';}).forEach(function(p){
+    (p.tareas||[]).forEach(function(t){
+      if(!t.fechaCumplimiento) return;
+      if(tareaEstadoCached(t)==='OK'||tareaEstadoCached(t)==='Cancelado') return;
+      tareasFuturas.push({proy:p,tarea:t,estado:tareaEstadoCached(t),fecha:t.fechaCumplimiento});
+    });
+  });
+  tareasFuturas.sort(function(a,b){return a.fecha.localeCompare(b.fecha);});
+
+  if(tareasFuturas.length){
+    h+='<div class="card"><div class="ch"><div class="ct">Próximos vencimientos de tareas</div></div><div class="card-body">';
+    // Agrupar por semana
+    var semanas={};
+    tareasFuturas.forEach(function(x){
+      var d=new Date(x.fecha);
+      // Lunes de esa semana
+      var day=d.getDay()||7;
+      var lunes=new Date(d);lunes.setDate(d.getDate()-day+1);
+      var key=lunes.toISOString().slice(0,10);
+      if(!semanas[key]) semanas[key]=[];
+      semanas[key].push(x);
+    });
+
+    Object.keys(semanas).sort().forEach(function(semKey){
+      var items=semanas[semKey];
+      var esPassada=semKey<hoy;
+      var esSemanaActual=semKey<=hoy&&new Date(semKey).getTime()+7*86400000>new Date(hoy).getTime();
+      h+='<div style="margin-bottom:12px">'+
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:'+(esPassada?'var(--red)':esSemanaActual?'var(--amber)':'var(--text2)')+';margin-bottom:6px;padding:3px 0;border-bottom:1px solid var(--border)">'+
+          (esSemanaActual?'⚡ ':esPassada?'⚠️ ':'')+
+          'Semana del '+semKey+
+        '</div>'+
+        items.map(function(x){
+          var col=x.estado==='Atrasado'?'var(--red)':x.estado==='Pendiente confirmacion'?'#ce93d8':'var(--text2)';
+          var opAsig=x.tarea.operario?(DB.operarios||[]).find(function(o){return o.id===x.tarea.operario;}):null;
+          return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+x.proy.id+');},200)">'+
+            '<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+x.tarea.desc+'</div>'+
+              '<div style="font-size:10px;color:var(--text2)">'+x.proy.numero+' '+x.proy.nombre.slice(0,25)+(opAsig?' &middot; '+opAsig.nombre:'')+'</div>'+
+            '</div>'+
+            '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+
+              '<span style="font-size:10px;color:'+col+'">'+x.fecha+'</span>'+
+              tareaPill(x.estado)+
+            '</div>'+
+          '</div>';
+        }).join('')+
+      '</div>';
+    });
+    h+='</div></div>';
+  }
+
+  el.innerHTML=h;
 }
 
 // =======================================================
