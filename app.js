@@ -1325,6 +1325,7 @@ function abrirProyecto(id){
         '<th style="padding:5px 10px;font-size:10px">Componente</th>'+
         '<th style="padding:5px 10px;font-size:10px;text-align:center">Cant.</th>'+
         '<th style="padding:5px 10px;font-size:10px;text-align:center">Devuelto</th>'+
+        '<th style="padding:5px 10px;font-size:10px">Tarea</th>'+
         '<th style="padding:5px 10px;font-size:10px;text-align:right">Valor $</th>'+
         (esFin?'':'<th style="padding:5px 10px;font-size:10px"></th>')+
       '</tr></thead><tbody>'+
@@ -1332,11 +1333,17 @@ function abrirProyecto(id){
         var comp=(compById(m.compId)||{codigo:'?',desc:'?'});
         var val=(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
         var sobrante=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
+        // Buscar tarea vinculada
+        var tareaLabel='--';
+        if(m.tareaIdx!==undefined&&p.tareas&&p.tareas[m.tareaIdx]){
+          tareaLabel='<span style="font-size:10px;background:var(--surface3);padding:1px 6px;border-radius:8px">'+p.tareas[m.tareaIdx].desc.slice(0,30)+'</span>';
+        }
         return '<tr style="border-bottom:1px solid var(--border)">'+
           '<td style="padding:5px 10px;font-size:11px;font-family:monospace">'+comp.codigo+'</td>'+
           '<td style="padding:5px 10px;font-size:11px">'+comp.desc+'</td>'+
           '<td style="padding:5px 10px;text-align:center;font-weight:700">'+m.cant+' '+(comp.unidad||'')+'</td>'+
           '<td style="padding:5px 10px;text-align:center;color:var(--text2)">'+(m.devuelto||0)+(sobrante>0&&!esFin?'<span style="font-size:10px;color:var(--amber)"> ('+sobrante+' en proyecto)</span>':'')+'</td>'+
+          '<td style="padding:5px 10px;font-size:11px">'+tareaLabel+'</td>'+
           '<td style="padding:5px 10px;text-align:right;font-size:11px">$'+Math.round(val).toLocaleString('es-AR')+'</td>'+
           (!esFin?'<td style="padding:5px 10px"><button class="btn btn-sm" style="color:var(--red)" onclick="quitarMaterialProyecto('+id+','+mi+')">X</button></td>':'')+
         '</tr>';
@@ -1485,7 +1492,14 @@ function editarTareaProyecto(projId, idx){
       if(!desc){alert('La descripcion es obligatoria.');return false;}
       t.desc=desc;
       t.fechaCumplimiento=document.getElementById('et-fecha').value;
+      var operarioAnterior=t.operario;
       t.operario=parseInt(document.getElementById('et-operario')?document.getElementById('et-operario').value:0)||null;
+      // Trazabilidad cambio de operario
+      if(operarioAnterior!==t.operario){
+        var opAntes=operarioAnterior?(DB.operarios||[]).find(function(o){return o.id===operarioAnterior;}):null;
+        var opDespues=t.operario?(DB.operarios||[]).find(function(o){return o.id===t.operario;}):null;
+        p.historial.push({fecha:today(),accion:'Tarea "'+t.desc+'" reasignada de '+(opAntes?opAntes.nombre:'Sin asignar')+' a '+(opDespues?opDespues.nombre:'Sin asignar')});
+      }
       t.costoMO=parseFloat(document.getElementById('et-costo')?document.getElementById('et-costo').value:0)||0;
       var nuevoPesoE=parseFloat(document.getElementById('et-peso')?document.getElementById('et-peso').value:0)||0;
       var pesoUsadoE=(p.tareas||[]).reduce(function(a,tt,i){return i===idx?a:a+(parseFloat(tt.peso)||0);},0);
@@ -1700,6 +1714,8 @@ function agregarMaterialProyecto(projId){
     return '<option value="'+c.id+'">['+stock+'] '+c.codigo+' -- '+c.desc+'</option>';
   }).join('');
 
+  var tareasDisp=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)!=='OK'&&tareaEstadoCached(t)!=='Cancelado';});
+
   openModal('Agregar material -- '+p.numero,
     '<div class="fg2">'+
       '<div class="fg full"><label>Componente * <span style="font-size:10px;color:var(--text2)">(escribi para buscar)</span></label>'+
@@ -1730,6 +1746,13 @@ function agregarMaterialProyecto(projId){
         '<div id="am-comp-info" style="font-size:11px;color:#4fc3f7;margin-top:4px;min-height:16px"></div>'+
       '</div>'+
       '<div class="fg"><label>Cantidad *</label><input id="am-cant" type="number" min="0.01" step="0.01" value="1"></div>'+
+      (p.estado==='En curso'&&tareasDisp.length?
+        '<div class="fg full"><label>Vincular a tarea <span style="font-size:10px;color:var(--text2)">(opcional)</span></label>'+
+          '<select id="am-tarea" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
+            '<option value="">-- Sin vincular --</option>'+
+            tareasDisp.map(function(t,i){return '<option value="'+i+'">'+t.desc.slice(0,60)+'</option>';}).join('')+
+          '</select>'+
+        '</div>':'')+
     '</div>',
     function(){
       var compId=parseInt(document.getElementById('am-comp').value)||0;
@@ -1808,9 +1831,25 @@ function agregarMaterialProyecto(projId){
             p.historial.push({fecha:today(),accion:'OC generada por faltante: '+nuevaOC.numero+' -- '+comp.desc+' x'+cant+' (entregado: '+cantAEntregar+', pendiente: '+cantFaltante2+')'});
           }
         }
+        var tareaSelIdx=document.getElementById('am-tarea')?document.getElementById('am-tarea').value:'';
+        var tareaSelLabel='';
+        if(tareaSelIdx!==''){
+          var tSel=tareasDisp[parseInt(tareaSelIdx)];
+          if(tSel){
+            tareaSelLabel=tSel.desc;
+            // Guardar referencia al índice real de la tarea en p.tareas
+            var idxReal=(p.tareas||[]).indexOf(tSel);
+            if(existing) existing.tareaIdx=idxReal;
+            else{
+              var lastMat=p.materiales[p.materiales.length-1];
+              if(lastMat) lastMat.tareaIdx=idxReal;
+            }
+          }
+        }
         var accion2='Material adicional: '+comp.desc+' x'+cant;
         if(cantAEntregar>0) accion2+=' -- entregado al proyecto: '+cantAEntregar;
         if(cantFaltante2>0) accion2+=' -- OC generada por faltante: '+cantFaltante2;
+        if(tareaSelLabel) accion2+=' -- vinculado a tarea: "'+tareaSelLabel+'"';
         p.historial.push({fecha:today(),accion:accion2});
       }
       save();cerrarModal();
