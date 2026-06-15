@@ -123,8 +123,8 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
     <h2>Viking Security</h2>
     <div class="login-sub">Gestión de Proyectos y Logística</div>
     <div class="login-fields">
-      <input id="login-user" type="text" placeholder="Usuario" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
-      <input id="login-pass" type="password" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')intentarLogin()">
+      <input id="login-user" type="text" placeholder="Usuario" autocomplete="off" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+      <input id="login-pass" type="password" placeholder="Contraseña" autocomplete="new-password" onkeydown="if(event.key==='Enter')intentarLogin()">
     </div>
     <div id="login-error"></div>
     <button id="login-btn" onclick="intentarLogin()">INGRESAR</button>
