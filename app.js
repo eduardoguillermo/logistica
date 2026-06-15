@@ -975,7 +975,7 @@ function renderProyectos(){
   var toggleEl=document.getElementById('proy-body-toggle');
   if(toggleEl) toggleEl.innerHTML=
     '<div style="display:flex;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px;width:fit-content">'+
-      '<button onclick="renderProyectos()" style="padding:6px 16px;font-size:12px;border:none;cursor:pointer;background:var(--primary);color:#fff;font-weight:700">☰ Lista</button>'+
+      '<button onclick="cerrarFichaProyecto();renderProyectos()" style="padding:6px 16px;font-size:12px;border:none;cursor:pointer;background:var(--primary);color:#fff;font-weight:700">☰ Lista</button>'+
       '<button onclick="goTo(\'dashproy\')" style="padding:6px 16px;font-size:12px;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text2)">📊 Dashboard</button>'+
     '</div>';
 
