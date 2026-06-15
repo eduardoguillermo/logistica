@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manual VSS Logística v2.0</title>
+<style>
+:root{
+  --primary:#B71C1C;--red:#c62828;--green:#2e7d32;--amber:#E65100;
+  --blue:#1565C0;--purple:#6a1b9a;
+  --bg:#111;--surface:#1a1a1a;--surface2:#222;--surface3:#2a2a2a;
+  --border:#333;--text:#e8e8e8;--text2:#999;--text3:#555;
+  --r:6px;--nav-w:260px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.6;display:flex;min-height:100vh}
+
+/* NAV */
+nav{width:var(--nav-w);min-width:var(--nav-w);background:var(--surface);border-right:1px solid var(--border);position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;display:flex;flex-direction:column}
+.nav-logo{padding:20px 16px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.nav-logo svg{flex-shrink:0}
+.nav-logo .title{font-size:13px;font-weight:700;color:var(--text)}
+.nav-logo .sub{font-size:10px;color:var(--text2)}
+.nav-section{padding:10px 0}
+.nav-section-title{padding:4px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-top:6px}
+nav a{display:block;padding:6px 16px 6px 20px;font-size:12px;color:var(--text2);text-decoration:none;cursor:pointer;transition:all .15s;border-left:2px solid transparent}
+nav a:hover{color:var(--text);background:var(--surface2)}
+nav a.active{color:#fff;background:rgba(183,28,28,.15);border-left-color:var(--primary);font-weight:600}
+.nav-role{margin:0 12px 8px;border-radius:var(--r);padding:6px 10px;font-size:11px;font-weight:700;text-align:center;cursor:pointer;border:none}
+.nav-role.admin{background:rgba(183,28,28,.2);color:var(--primary)}
+.nav-role.oper{background:rgba(230,81,0,.2);color:var(--amber)}
+
+/* MAIN */
+main{margin-left:var(--nav-w);flex:1;padding:40px 48px;max-width:900px}
+
+/* SECTIONS */
+section{display:none}
+section.active{display:block}
+
+/* TYPOGRAPHY */
+h1{font-size:28px;font-weight:800;margin-bottom:6px;color:#fff}
+h2{font-size:20px;font-weight:700;margin:32px 0 12px;color:#fff;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{font-size:15px;font-weight:700;margin:20px 0 8px;color:var(--text)}
+h4{font-size:13px;font-weight:700;margin:14px 0 6px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em}
+p{margin-bottom:10px;color:var(--text);line-height:1.7}
+.lead{font-size:16px;color:var(--text2);margin-bottom:24px}
+strong{color:#fff}
+
+/* ROLE BADGE */
+.role-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;margin-bottom:16px}
+.role-badge.admin{background:rgba(183,28,28,.2);color:var(--primary)}
+.role-badge.oper{background:rgba(230,81,0,.2);color:var(--amber)}
+.role-badge.both{background:rgba(21,101,192,.2);color:#4fc3f7}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;margin-bottom:14px}
+.card h3{margin-top:0}
+
+/* STEPS */
+.steps{counter-reset:step;margin:12px 0}
+.step{display:flex;gap:14px;margin-bottom:14px;align-items:flex-start}
+.step-n{counter-increment:step;content:counter(step);width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-body{flex:1}
+.step-body strong{display:block;margin-bottom:2px}
+
+/* TIPS */
+.tip{background:#0a1a0a;border-left:3px solid var(--green);border-radius:0 var(--r) var(--r) 0;padding:10px 14px;margin:12px 0;font-size:13px}
+.tip::before{content:'💡 ';font-weight:700}
+.warn{background:#1a0a00;border-left:3px solid var(--amber);border-radius:0 var(--r) var(--r) 0;padding:10px 14px;margin:12px 0;font-size:13px}
+.warn::before{content:'⚠️ ';font-weight:700}
+.info{background:#0a0a1a;border-left:3px solid var(--blue);border-radius:0 var(--r) var(--r) 0;padding:10px 14px;margin:12px 0;font-size:13px}
+.info::before{content:'ℹ️ ';font-weight:700}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th{padding:7px 12px;background:var(--surface2);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);text-align:left;border-bottom:2px solid var(--border)}
+td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+
+/* PILLS */
+.pill{display:inline-flex;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700}
+.p-plan{background:#2a2000;color:#ffb74d}
+.p-enc{background:#0a1a3a;color:#4fc3f7}
+.p-pau{background:#222;color:#888}
+.p-fin{background:#0a2a0a;color:#66bb6a}
+.p-can{background:#2a0a0a;color:#ef5350}
+
+/* KPI BOX */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:12px 0}
+.kpi{background:var(--surface2);border-radius:var(--r);padding:10px;text-align:center}
+.kpi-val{font-size:20px;font-weight:900}
+.kpi-label{font-size:10px;color:var(--text2);margin-top:2px}
+
+/* BREADCRUMB */
+.breadcrumb{font-size:11px;color:var(--text3);margin-bottom:24px}
+.breadcrumb span{color:var(--text2)}
+
+/* TOC */
+.toc{background:var(--surface2);border-radius:var(--r);padding:16px 20px;margin-bottom:28px}
+.toc h4{margin:0 0 10px}
+.toc a{display:block;color:var(--text2);text-decoration:none;font-size:13px;padding:2px 0}
+.toc a:hover{color:var(--text)}
+
+/* DIVIDER */
+hr{border:none;border-top:1px solid var(--border);margin:28px 0}
+
+/* HIGHLIGHT */
+kbd{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-size:12px;font-family:monospace}
+code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px;font-family:monospace;color:#ce93d8}
+
+@media(max-width:768px){
+  nav{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap}
+  main{margin-left:0;padding:20px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">
+    <svg width="32" height="35" viewBox="0 0 90 100">
+      <path d="M45 4 L82 18 L82 52 Q82 76 45 96 Q8 76 8 52 L8 18 Z" fill="#B71C1C"/>
+      <text x="45" y="63" font-family="Arial Black" font-size="36" font-weight="900" fill="#fff" text-anchor="middle">V</text>
+    </svg>
+    <div><div class="title">VSS Logística</div><div class="sub">Manual v2.0</div></div>
+  </div>
+
+  <div style="padding:10px 12px 0">
+    <button class="nav-role admin" onclick="setRol('admin')">👤 Ver como Administrador</button>
+    <button class="nav-role oper" style="margin-top:6px" onclick="setRol('operario')">👷 Ver como Operario</button>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">Inicio</div>
+    <a onclick="goTo('intro')">📖 Introducción</a>
+    <a onclick="goTo('login')">🔐 Acceso al sistema</a>
+    <a onclick="goTo('nav')">🧭 Navegación</a>
+  </div>
+
+  <div class="nav-section" id="nav-admin-section">
+    <div class="nav-section-title">Administrador</div>
+    <a onclick="goTo('dashboard')">📊 Dashboard</a>
+    <a onclick="goTo('proyectos')">📁 Proyectos</a>
+    <a onclick="goTo('ciclo')">🔄 Ciclo de vida</a>
+    <a onclick="goTo('tareas')">📋 Tareas y dependencias</a>
+    <a onclick="goTo('materiales')">📦 Materiales y reservas</a>
+    <a onclick="goTo('kpi')">📈 KPIs y valor ganado</a>
+    <a onclick="goTo('oc')">🛒 Órdenes de compra</a>
+    <a onclick="goTo('operarios')">👷 Operarios</a>
+    <a onclick="goTo('stock')">🗃️ Stock y catálogo</a>
+    <a onclick="goTo('reportes')">📄 Reportes</a>
+    <a onclick="goTo('config')">⚙️ Configuración</a>
+    <a onclick="goTo('backup')">💾 Backup</a>
+  </div>
+
+  <div class="nav-section" id="nav-oper-section">
+    <div class="nav-section-title">Operario</div>
+    <a onclick="goTo('oper-dashboard')">📊 Mi dashboard</a>
+    <a onclick="goTo('oper-tareas')">📋 Mis tareas</a>
+    <a onclick="goTo('oper-avance')">📈 Registrar avance</a>
+    <a onclick="goTo('oper-stock')">🗃️ Consultar stock</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">Referencia</div>
+    <a onclick="goTo('glosario')">📚 Glosario</a>
+    <a onclick="goTo('atajos')">⌨️ Atajos y tips</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-intro" class="active">
+  <div class="breadcrumb">Manual VSS Logística v2.0</div>
+  <h1>VSS Logística</h1>
+  <p class="lead">Sistema de gestión de proyectos, logística y stock para Viking Security Systems.</p>
+
+  <div class="toc">
+    <h4>Contenido del manual</h4>
+    <a onclick="goTo('login')">→ Acceso al sistema</a>
+    <a onclick="goTo('dashboard')">→ Dashboard y control de proyectos</a>
+    <a onclick="goTo('proyectos')">→ Gestión de proyectos</a>
+    <a onclick="goTo('ciclo')">→ Ciclo de vida de un proyecto</a>
+    <a onclick="goTo('tareas')">→ Tareas y dependencias</a>
+    <a onclick="goTo('materiales')">→ Materiales y reservas de stock</a>
+    <a onclick="goTo('kpi')">→ KPIs y método del valor ganado</a>
+    <a onclick="goTo('oc')">→ Órdenes de compra</a>
+    <a onclick="goTo('operarios')">→ Gestión de operarios</a>
+    <a onclick="goTo('stock')">→ Stock y catálogo</a>
+    <a onclick="goTo('glosario')">→ Glosario</a>
+  </div>
+
+  <h2>¿Qué hace el sistema?</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+    <div class="card">
+      <h3>📁 Proyectos</h3>
+      <p>Gestión completa del ciclo de vida: planificación, ejecución, pausa, cierre y archivo histórico.</p>
+    </div>
+    <div class="card">
+      <h3>📦 Logística</h3>
+      <p>Reserva, asignación y seguimiento de materiales por proyecto con OC automáticas por faltantes.</p>
+    </div>
+    <div class="card">
+      <h3>👷 Operarios</h3>
+      <p>Asignación de tareas, control de carga de trabajo y seguimiento por operario.</p>
+    </div>
+    <div class="card">
+      <h3>📈 KPIs</h3>
+      <p>Indicadores de valor ganado (CPI, SPI, EAC, VAC) calculados automáticamente por proyecto.</p>
+    </div>
+  </div>
+
+  <h2>Roles del sistema</h2>
+  <table>
+    <thead><tr><th>Función</th><th><span class="pill p-enc">Administrador</span></th><th><span class="pill p-plan">Operario</span></th></tr></thead>
+    <tbody>
+      <tr><td>Ver dashboard y proyectos</td><td>✅ Todos</td><td>✅ Solo los suyos</td></tr>
+      <tr><td>Crear y editar proyectos</td><td>✅</td><td>❌</td></tr>
+      <tr><td>Marcar avance en tareas</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Agregar materiales</td><td>✅</td><td>❌</td></tr>
+      <tr><td>Gestionar stock y catálogo</td><td>✅</td><td>Solo consulta</td></tr>
+      <tr><td>Configuración y backup</td><td>✅</td><td>❌</td></tr>
+      <tr><td>Ver reportes y KPIs</td><td>✅</td><td>❌</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-login">
+  <div class="breadcrumb">Inicio › <span>Acceso al sistema</span></div>
+  <h1>Acceso al sistema</h1>
+  <span class="role-badge both">👤 Administrador y Operario</span>
+
+  <h2>Iniciar sesión</h2>
+  <div class="steps">
+    <div class="step"><div class="step-n">1</div><div class="step-body"><strong>Pantalla de login</strong>Al abrir la app aparece la pantalla de usuario y contraseña antes del splash.</div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-body"><strong>Ingresá tus credenciales</strong>Escribí tu usuario y contraseña. Presioná Enter en el campo de usuario para pasar al de contraseña, y Enter en contraseña para ingresar.</div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-body"><strong>Splash y dashboard</strong>Si las credenciales son correctas, se muestra el splash de Viking Security y luego el dashboard. Si hay alertas de tareas o proyectos próximos, aparece un aviso automático.</div></div>
+  </div>
+
+  <div class="warn">Si las credenciales son incorrectas, el cuadro de login hace shake y se limpia la contraseña. Verificá mayúsculas y minúsculas.</div>
+
+  <h2>Cerrar sesión</h2>
+  <p>En la parte inferior del menú lateral aparece el nombre del usuario activo y el botón <strong>🔒 Cerrar sesión</strong>.</p>
+
+  <h2>Modo desarrollo (sin login)</h2>
+  <span class="role-badge admin">👤 Solo Administrador</span>
+  <p>En <strong>Configuración → Control de acceso</strong> hay un check "Deshabilitar login". Cuando está activo, la app entra directo como Administrador sin pedir credenciales. Útil durante pruebas, desactivar en producción.</p>
+
+  <h2>Gestión de usuarios</h2>
+  <span class="role-badge admin">👤 Solo Administrador</span>
+  <p>En <strong>Configuración → Control de acceso</strong> podés crear, editar y eliminar usuarios. Cada usuario tiene:</p>
+  <table>
+    <thead><tr><th>Campo</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Usuario</strong></td><td>Nombre de login (sin espacios)</td></tr>
+      <tr><td><strong>Contraseña</strong></td><td>Al editar, dejar vacío para no cambiarla</td></tr>
+      <tr><td><strong>Rol</strong></td><td>Administrador o Operario</td></tr>
+      <tr><td><strong>Operario vinculado</strong></td><td>Solo para Operarios — limita la vista a sus proyectos</td></tr>
+    </tbody>
+  </table>
+  <div class="tip">Para que un Operario vea solo sus proyectos, vinculalo a un operario del módulo Operarios que tenga tareas asignadas.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-nav">
+  <div class="breadcrumb">Inicio › <span>Navegación</span></div>
+  <h1>Navegación</h1>
+  <span class="role-badge both">👤 Todos</span>
+
+  <h2>Menú lateral</h2>
+  <p>El menú lateral está siempre visible. Está organizado en secciones:</p>
+  <table>
+    <thead><tr><th>Sección</th><th>Módulos</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Operaciones</strong></td><td>Dashboard, Proyectos, Dashboard proyectos</td></tr>
+      <tr><td><strong>Inventario</strong></td><td>Stock actual, Catálogo, Movimientos</td></tr>
+      <tr><td><strong>Compras</strong></td><td>Órdenes de compra, Proveedores, Operarios</td></tr>
+      <tr><td><strong>Análisis</strong></td><td>Reportes</td></tr>
+      <tr><td><strong>Sistema</strong></td><td>Configuración, Backup (solo Admin)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Búsqueda global</h2>
+  <p>El ícono 🔍 en la barra superior abre la búsqueda global. Busca simultáneamente en proyectos, componentes, proveedores, movimientos y órdenes. Hacer click en un resultado navega directamente al registro.</p>
+
+  <h2>Modales</h2>
+  <p>Las acciones de crear y editar abren modales (ventanas emergentes). Para cerrar un modal sin guardar, usá el botón <kbd>X</kbd> en la esquina superior derecha.</p>
+
+  <div class="tip">En campos de búsqueda dentro de modales (como agregar material a un proyecto), escribí el código o nombre del componente para filtrar.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-dashboard">
+  <div class="breadcrumb">Administrador › <span>Dashboard</span></div>
+  <h1>Dashboard</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <p class="lead">Pantalla inicial después del login. Muestra el estado general del negocio de un vistazo.</p>
+
+  <h2>Paneles del dashboard</h2>
+
+  <div class="card">
+    <h3>Stats rápidos</h3>
+    <p>Contadores clickeables en la parte superior: proyectos en curso, planificados, pausados, tareas vencidas, stock crítico, OC pendientes, depósitos transitorios y entregas parciales.</p>
+  </div>
+
+  <div class="card">
+    <h3>Proyectos activos</h3>
+    <p>Lista compacta de los 3 proyectos En curso más recientes con barra de avance de tiempo y estado de tareas. Los proyectos pausados aparecen debajo con un separador y su razón de pausa.</p>
+  </div>
+
+  <div class="card">
+    <h3>Stock crítico</h3>
+    <p>Componentes cuyo stock actual es igual o menor al mínimo configurado. La columna <em>Reserva</em> muestra cuánto está comprometido en proyectos planificados. Hacer click en "...y N más" va al módulo Stock ordenado por cantidad.</p>
+  </div>
+
+  <div class="card">
+    <h3>Depósitos transitorios</h3>
+    <p>Proyectos en Planificado con materiales reservados. Muestra ítems, valor y si hay OC pendiente por faltante.</p>
+  </div>
+
+  <div class="card">
+    <h3>Entregas parciales</h3>
+    <p>Proyectos aprobados donde algún material está pendiente de recibir vía OC. Muestra la OC vinculada y permite cambiar su estado directamente.</p>
+  </div>
+
+  <div class="card">
+    <h3>Control de proyectos</h3>
+    <p>Cards por proyecto activo con avance físico (MO), avance tiempo, semáforo, días restantes, tareas y ejecución presupuestaria.</p>
+    <table>
+      <thead><tr><th>Semáforo</th><th>Significado</th></tr></thead>
+      <tbody>
+        <tr><td>🟢 Adelantado</td><td>Avance físico supera al avance de tiempo por más del 5%</td></tr>
+        <tr><td>🟡 En línea</td><td>Diferencia entre físico y tiempo menor a 10%</td></tr>
+        <tr><td>🔴 Atrasado</td><td>Avance físico más de 10% por debajo del avance de tiempo</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Alertas automáticas</h2>
+  <p>Al iniciar la sesión, si hay tareas próximas a vencer (5 días hábiles) o proyectos planificados con inicio inminente (1 día hábil), aparece un modal de alerta automáticamente.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-proyectos">
+  <div class="breadcrumb">Administrador › <span>Proyectos</span></div>
+  <h1>Proyectos</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <h2>Vistas del módulo</h2>
+  <p>El módulo Proyectos tiene dos modos accesibles con el toggle <strong>☰ Lista / 📊 Dashboard</strong>:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li><strong>Lista:</strong> tabla con filtros Activos / Finalizados / Todos</li>
+    <li><strong>Dashboard:</strong> Gantt, burbujas de estado, barras de avance y timeline de vencimientos</li>
+  </ul>
+
+  <h2>Crear un proyecto</h2>
+  <div class="steps">
+    <div class="step"><div class="step-n">1</div><div class="step-body"><strong>➕ Nuevo proyecto</strong>El número se asigna automáticamente (formato PRY-001, PRY-002...).</div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-body"><strong>Completar datos básicos</strong>Nombre, prioridad (Baja/Media/Alta), alcance (Objetivo, Qué incluye, Qué NO incluye), descripción, fechas y presupuesto.</div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-body"><strong>Validación de fechas</strong>El sistema verifica que la fecha de fin no sea anterior a la de inicio.</div></div>
+    <div class="step"><div class="step-n">4</div><div class="step-body"><strong>Se abre la ficha</strong>El proyecto queda en estado Planificado y se abre directamente para agregar materiales y tareas.</div></div>
+  </div>
+
+  <h2>Ficha del proyecto</h2>
+  <p>La ficha tiene una <strong>barra de acciones sticky</strong> (fija al hacer scroll) con los botones disponibles según el estado actual:</p>
+  <table>
+    <thead><tr><th>Estado</th><th>Botones disponibles</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill p-plan">Planificado</span></td><td>✅ Confirmar, ➕ Material, 📋 Tarea, 💰 Presupuesto, 📋 Alcance, ❌ Cancelar</td></tr>
+      <tr><td><span class="pill p-enc">En curso</span></td><td>➕ Material, 📋 Tarea, 🏁 Iniciar cierre, 💰 Presupuesto, 📋 Alcance, ⏸ Pausar, ❌ Cancelar</td></tr>
+      <tr><td><span class="pill p-pau">Pausado</span></td><td>▶ Reanudar, 💰 Presupuesto, 📋 Alcance, ❌ Cancelar</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-ciclo">
+  <div class="breadcrumb">Administrador › <span>Ciclo de vida</span></div>
+  <h1>Ciclo de vida de un proyecto</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <div class="card" style="text-align:center;padding:20px">
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-size:13px">
+      <span class="pill p-plan">Planificado</span>
+      <span style="color:var(--text3)">→</span>
+      <span class="pill p-enc">En curso</span>
+      <span style="color:var(--text3)">→</span>
+      <span class="pill p-pau">Pausado</span>
+      <span style="color:var(--text3)">↔</span>
+      <span class="pill p-enc">En curso</span>
+      <span style="color:var(--text3)">→</span>
+      <span class="pill p-fin">Finalizado</span>
+    </div>
+    <p style="margin-top:12px;color:var(--text2);font-size:12px">En cualquier momento activo se puede Cancelar</p>
+  </div>
+
+  <h2>Planificado → En curso (Confirmar planificación)</h2>
+  <p>Al confirmar la planificación el sistema:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li>Convierte las reservas en salidas de stock hacia el proyecto</li>
+    <li>Genera <strong>OC automáticas por proveedor</strong> para los materiales faltantes</li>
+    <li>El proyecto pasa a En curso; si hay faltantes queda con <em>entrega parcial</em></li>
+  </ul>
+
+  <h2>Pausar un proyecto</h2>
+  <div class="steps">
+    <div class="step"><div class="step-n">1</div><div class="step-body"><strong>⏸ Pausar</strong>Abre un modal para seleccionar la razón de pausa.</div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-body"><strong>Razones disponibles</strong>Espera material, Espera presupuesto, Espera MO, o agregar una nueva (se guarda en la lista).</div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-body"><strong>El sistema guarda</strong>la fecha de pausa, días restantes al pausar y la razón. Visible en el dashboard.</div></div>
+  </div>
+
+  <h2>Reanudar un proyecto pausado</h2>
+  <p>Al reanudar, el sistema <strong>reprograma automáticamente</strong>:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li>La fecha de fin estimada se corre tantos días como duró la pausa</li>
+    <li>Todas las tareas no OK se corren la misma cantidad de días</li>
+    <li>Ninguna tarea puede quedar con fecha posterior a la nueva fecha de fin</li>
+  </ul>
+
+  <h2>Iniciar cierre (Finalizar proyecto)</h2>
+  <p>Al iniciar el cierre aparece un <strong>checklist</strong> con:</p>
+  <table>
+    <thead><tr><th>Item</th><th>Comportamiento</th></tr></thead>
+    <tbody>
+      <tr><td>Tareas completadas</td><td>Informativo — podés cerrar igual</td></tr>
+      <tr><td>Tareas pendientes de confirmación</td><td>Informativo</td></tr>
+      <tr><td>OC de reserva pendientes</td><td><strong>Bloqueante</strong> — no se puede cerrar hasta recibir las OC</td></tr>
+      <tr><td>Documentación cargada</td><td>Informativo</td></tr>
+    </tbody>
+  </table>
+  <p>Luego aparece el modal de <strong>devolución de sobrantes</strong> al stock.</p>
+
+  <h2>Cancelar un proyecto</h2>
+  <div class="warn">Al cancelar un proyecto Planificado, todo el material reservado vuelve al stock y las OC vinculadas se cancelan automáticamente.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-tareas">
+  <div class="breadcrumb">Administrador › <span>Tareas y dependencias</span></div>
+  <h1>Tareas y dependencias</h1>
+  <span class="role-badge both">👤 Administrador y Operario</span>
+
+  <h2>Campos de una tarea</h2>
+  <table>
+    <thead><tr><th>Campo</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Descripción</strong></td><td>Obligatorio</td></tr>
+      <tr><td><strong>Fecha de cumplimiento</strong></td><td>Activa el seguimiento de atraso automático</td></tr>
+      <tr><td><strong>Operario asignado</strong></td><td>Solo operarios activos. Define qué ve cada usuario Operario</td></tr>
+      <tr><td><strong>Costo MO ($)</strong></td><td>Mano de obra planificada para esta tarea</td></tr>
+      <tr><td><strong>Peso en proyecto (%)</strong></td><td>Contribución al avance físico total. La suma de todas no puede superar 100%</td></tr>
+      <tr><td><strong>Avance real (%)</strong></td><td>Actualización manual del progreso. Contribuye al CPI y SPI</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Estados de tarea</h2>
+  <table>
+    <thead><tr><th>Estado</th><th>Cómo se activa</th><th>Efecto</th></tr></thead>
+    <tbody>
+      <tr><td><span style="background:var(--blue);color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">En curso</span></td><td>Automático (default)</td><td>Normal</td></tr>
+      <tr><td><span style="background:var(--red);color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">Atrasado</span></td><td>Automático si fecha &lt; hoy</td><td>Aparece en alertas y dashboard</td></tr>
+      <tr><td><span style="background:#6a1b9a;color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">Pend. confirm.</span></td><td>Botón ⏳ o manual</td><td>El operario terminó, el admin confirma</td></tr>
+      <tr><td><span style="background:var(--green);color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">OK</span></td><td>Botón ✔ o manual</td><td>MO se suma al costo real (AC)</td></tr>
+      <tr><td><span style="background:var(--text3);color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">Cancelado</span></td><td>Manual</td><td>No cuenta en el avance</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Dependencias entre tareas</h2>
+  <p>En el modal <strong>Editar tarea</strong>, la sección Dependencias permite indicar que esta tarea depende de otra. Tipos disponibles:</p>
+  <table>
+    <thead><tr><th>Tipo</th><th>Significado</th><th>Bloquea</th></tr></thead>
+    <tbody>
+      <tr><td><code>FI</code> Fin→Inicio</td><td>B no puede iniciar hasta que A termine</td><td>Marcar avance en B</td></tr>
+      <tr><td><code>II</code> Inicio→Inicio</td><td>B no puede iniciar hasta que A inicie</td><td>Marcar avance en B</td></tr>
+      <tr><td><code>FF</code> Fin→Fin</td><td>B no puede terminar hasta que A termine</td><td>Marcar OK en B</td></tr>
+      <tr><td><code>IF</code> Inicio→Fin</td><td>B no puede terminar hasta que A inicie</td><td>Marcar OK en B</td></tr>
+    </tbody>
+  </table>
+  <p>Las dependencias se muestran como badges debajo del nombre de la tarea: <span style="background:#0a2a0a;color:#66bb6a;padding:1px 6px;border-radius:4px;font-size:11px">verde = cumplida</span> <span style="background:#3a0000;color:#ef5350;padding:1px 6px;border-radius:4px;font-size:11px">rojo = bloqueante</span></p>
+
+  <div class="warn">Si intentás marcar OK una tarea con dependencias bloqueantes, el sistema muestra cuáles son y no permite avanzar.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-materiales">
+  <div class="breadcrumb">Administrador › <span>Materiales y reservas</span></div>
+  <h1>Materiales y reservas de stock</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <h2>Flujo de materiales en Planificado</h2>
+  <div class="info">Al agregar material a un proyecto Planificado, el stock baja inmediatamente y el material va a un <strong>depósito transitorio</strong>.</div>
+  <div class="steps">
+    <div class="step"><div class="step-n">1</div><div class="step-body"><strong>Agregar material</strong>Si hay stock suficiente → reserva completa. Si hay faltante → reserva parcial + OC automática por el total solicitado.</div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-body"><strong>Confirmar planificación</strong>El depósito transitorio pasa al proyecto. Las OC quedan pendientes de compra.</div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-body"><strong>Al recibir la OC</strong>El saldo pendiente se asigna automáticamente al proyecto. El remanente queda en stock.</div></div>
+  </div>
+
+  <h2>Flujo de materiales En curso</h2>
+  <p>Al agregar material con el proyecto En curso:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li>Si hay stock → entrega inmediata al proyecto</li>
+    <li>Si hay faltante → entrega lo que hay + OC por el total solicitado</li>
+    <li>Opción de vincular el material a una tarea específica</li>
+  </ul>
+
+  <h2>Vincular material a tarea</h2>
+  <p>Al agregar material en un proyecto En curso, aparece un select opcional <em>Vincular a tarea</em>. Esto permite trazar qué materiales pertenecen a cada actividad. La tabla de materiales muestra la tarea vinculada con un botón ✕ para desvincular.</p>
+
+  <h2>Cancelar un proyecto con materiales</h2>
+  <table>
+    <thead><tr><th>Estado del proyecto</th><th>Qué pasa al cancelar</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill p-plan">Planificado</span></td><td>Todo el material del depósito transitorio vuelve al stock. Las OC vinculadas se cancelan.</td></tr>
+      <tr><td><span class="pill p-enc">En curso</span></td><td>Los sobrantes (cant - devuelto) vuelven al stock.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-kpi">
+  <div class="breadcrumb">Administrador › <span>KPIs</span></div>
+  <h1>KPIs — Método del Valor Ganado</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <p class="lead">Los KPIs aparecen automáticamente en la ficha de cada proyecto cuando hay presupuesto cargado y tareas con peso asignado.</p>
+
+  <h2>Indicadores</h2>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-val" style="color:#4fc3f7">EV</div><div class="kpi-label">Valor ganado<br>avance físico × BAC</div></div>
+    <div class="kpi"><div class="kpi-val">AC</div><div class="kpi-label">Costo real<br>materiales + MO OK</div></div>
+    <div class="kpi"><div class="kpi-val">PV</div><div class="kpi-label">Valor planificado<br>% tiempo × BAC</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--green)">CPI</div><div class="kpi-label">Cost Performance<br>EV / AC</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--amber)">SPI</div><div class="kpi-label">Schedule Performance<br>EV / PV</div></div>
+    <div class="kpi"><div class="kpi-val">EAC</div><div class="kpi-label">Costo final est.<br>AC + (BAC-EV)/CPI</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--green)">VAC</div><div class="kpi-label">Variación al completar<br>BAC - EAC</div></div>
+  </div>
+
+  <h2>Interpretación</h2>
+  <table>
+    <thead><tr><th>KPI</th><th style="color:var(--green)">≥ 1.0 (verde)</th><th style="color:var(--amber)">0.8 – 1.0 (naranja)</th><th style="color:var(--red)">&lt; 0.8 (rojo)</th></tr></thead>
+    <tbody>
+      <tr><td><strong>CPI</strong></td><td>Bajo presupuesto</td><td>Leve desvío</td><td>Sobre presupuesto</td></tr>
+      <tr><td><strong>SPI</strong></td><td>Adelantado</td><td>Leve atraso</td><td>Atrasado</td></tr>
+    </tbody>
+  </table>
+
+  <div class="tip">Para que los KPIs se calculen correctamente: asignar <strong>peso %</strong> a todas las tareas (suma = 100%), actualizar el <strong>avance real %</strong> periódicamente, y cargar los <strong>costos de MO</strong> en cada tarea.</div>
+
+  <h2>Condiciones para ver KPIs</h2>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li>El proyecto debe tener <strong>presupuesto cargado</strong> (botón 💰 en la barra sticky)</li>
+    <li>Al menos una tarea debe tener <strong>peso % asignado</strong></li>
+    <li>Para SPI y PV: el proyecto debe tener <strong>fechas de inicio y fin</strong></li>
+    <li>Para CPI: debe haber <strong>costo real</strong> (materiales entregados o tareas OK con MO)</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-oc">
+  <div class="breadcrumb">Administrador › <span>Órdenes de compra</span></div>
+  <h1>Órdenes de compra</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <h2>Tipos de OC</h2>
+  <table>
+    <thead><tr><th>Tipo</th><th>Descripción</th><th>Estados</th></tr></thead>
+    <tbody>
+      <tr><td><strong>OC normal</strong></td><td>Reposición de stock manual</td><td>Pendiente → Enviada → Recibida</td></tr>
+      <tr><td><strong>OC de reserva</strong></td><td>Generada automáticamente por faltante en proyecto</td><td>Pend. compra → Pend. entrega → Recibida</td></tr>
+    </tbody>
+  </table>
+
+  <p>Las OC de reserva aparecen en una <strong>sección separada</strong> en el módulo, con el proyecto vinculado visible.</p>
+
+  <h2>Recibir una OC de reserva</h2>
+  <p>Al cambiar el estado a <strong>Recibida</strong>, aparece un modal de confirmación con:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li><strong>Columna "Al proyecto":</strong> cantidad que se asigna al saldo pendiente del proyecto</li>
+    <li><strong>Columna "Al stock":</strong> remanente que queda disponible en stock</li>
+  </ul>
+  <p>Al confirmar, el movimiento se realiza automáticamente y se registra en el historial del proyecto.</p>
+
+  <div class="tip">El estado "Pendiente de compra" significa que la orden aún no fue emitida al proveedor. "Pendiente de entrega" significa que ya se compró y se espera la llegada.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-operarios">
+  <div class="breadcrumb">Administrador › <span>Operarios</span></div>
+  <h1>Operarios</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <h2>Gestión de operarios</h2>
+  <p>Accedé desde el menú lateral → <strong>👷 Operarios</strong>. Podés crear, editar y desactivar operarios.</p>
+  <table>
+    <thead><tr><th>Campo</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Nombre</strong></td><td>Obligatorio</td></tr>
+      <tr><td><strong>Especialidad</strong></td><td>Campo libre con sugerencias (Instalación, Programación, etc.)</td></tr>
+      <tr><td><strong>Teléfono</strong></td><td>Contacto o WhatsApp</td></tr>
+      <tr><td><strong>Estado</strong></td><td>Activo o Inactivo. Los inactivos no aparecen en los selects de tareas</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Vistas de operarios</h2>
+  <p>El módulo tiene tres vistas con toggle Cards / Tabla / Kanban:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li><strong>Cards:</strong> una card por operario con sus tareas pendientes clickeables</li>
+    <li><strong>Tabla:</strong> comparativa de carga de trabajo con barra de capacidad (Baja/Media/Alta)</li>
+    <li><strong>Kanban:</strong> columnas por operario + "Sin asignar", tareas como cards con colores por urgencia</li>
+  </ul>
+
+  <h2>Asignar operario a una tarea</h2>
+  <p>En el modal <strong>Editar tarea</strong> o <strong>Nueva tarea</strong>, el campo <em>Operario asignado</em> muestra solo los operarios activos. Al cambiar el operario, queda registrado en el historial del proyecto.</p>
+
+  <div class="tip">Vinculá cada usuario Operario a su operario correspondiente en <strong>Configuración → Control de acceso</strong> para que solo vean sus proyectos.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-stock">
+  <div class="breadcrumb">Administrador › <span>Stock y catálogo</span></div>
+  <h1>Stock y catálogo</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <h2>Stock actual</h2>
+  <p>Muestra el inventario en tiempo real. La columna <strong>Valor total</strong> = cantidad × costo unitario. Clickeá cualquier encabezado para ordenar.</p>
+  <div class="info">El stock crítico se calcula sobre el stock físico total (incluyendo material reservado en proyectos planificados). La columna <em>En reserva</em> en el panel del dashboard muestra lo comprometido.</div>
+
+  <h2>Catálogo de componentes</h2>
+  <p>El catálogo es el maestro de todos los componentes. Campos principales:</p>
+  <table>
+    <thead><tr><th>Campo</th><th>Descripción</th></tr></thead>
+    <tbody>
+      <tr><td>Código</td><td>Identificador único</td></tr>
+      <tr><td>Cajonera / N° cajón</td><td>Ubicación física en el depósito</td></tr>
+      <tr><td>Mínimo</td><td>Umbral para alerta de stock crítico</td></tr>
+      <tr><td>Costo $</td><td>Precio en pesos. Los cambios quedan en el historial de precios</td></tr>
+      <tr><td>Costo U$S</td><td>Precio en dólares</td></tr>
+      <tr><td>Estado material</td><td>N = Nuevo, R = Recuperado</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Historial de precios</h2>
+  <p>Cada vez que se edita el costo de un componente, el sistema registra el valor anterior, el nuevo y la fecha. Visible al final del modal de edición y en el reporte <strong>Historial de precios</strong>.</p>
+
+  <h2>Movimientos de stock</h2>
+  <p>Tipos de movimiento:</p>
+  <table>
+    <thead><tr><th>Tipo</th><th>Efecto en stock</th></tr></thead>
+    <tbody>
+      <tr><td>Entrada</td><td>Suma al stock</td></tr>
+      <tr><td>Salida manual</td><td>Resta al stock</td></tr>
+      <tr><td>Salida instalación</td><td>Resta al stock (vinculada a proyecto)</td></tr>
+      <tr><td>Reserva</td><td>Resta al stock (material en depósito transitorio)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-reportes">
+  <div class="breadcrumb">Administrador › <span>Reportes</span></div>
+  <h1>Reportes</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <table>
+    <thead><tr><th>Reporte</th><th>Contenido</th></tr></thead>
+    <tbody>
+      <tr><td>Stock crítico</td><td>Componentes bajo el mínimo</td></tr>
+      <tr><td>Inventario por área</td><td>Stock agrupado por área</td></tr>
+      <tr><td>Movimientos 30 días</td><td>Entradas y salidas del último mes</td></tr>
+      <tr><td>Ubicaciones / Cajoneras</td><td>Stock con badge de ubicación física</td></tr>
+      <tr><td>Salidas por motivo</td><td>Filtros: fecha, componente, motivo</td></tr>
+      <tr><td>Entradas por origen</td><td>Filtros: fecha, componente, origen</td></tr>
+      <tr><td>OC por proveedor</td><td>Órdenes agrupadas por proveedor</td></tr>
+      <tr><td>Stock con precios</td><td>Catálogo con costos en $ y U$S</td></tr>
+      <tr><td>Avance de proyectos</td><td>Estado, fechas, barras de avance, erogaciones vs presupuesto, materiales y MO</td></tr>
+      <tr><td>Uso de recursos</td><td>Materiales consumidos vs devueltos, MO por tarea OK, comparación estimado vs real</td></tr>
+      <tr><td>Historial de precios</td><td>Todos los cambios de costo con variación % y filtros por componente/fecha</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Exportar a Excel</h2>
+  <p>Desde <strong>Backup → 📊 Exportar Excel</strong> se genera un archivo .xlsx con 6 hojas:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li><strong>Stock</strong> — catálogo completo con cantidades y valores</li>
+    <li><strong>Movimientos</strong> — activos y archivados</li>
+    <li><strong>Proyectos</strong> — KPIs, avance, costos</li>
+    <li><strong>Tareas</strong> — todas las tareas con estado y avance</li>
+    <li><strong>Operarios</strong> — carga de trabajo y MO asignada</li>
+    <li><strong>Tareas por operario</strong> — tareas organizadas por operario</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-config">
+  <div class="breadcrumb">Administrador › <span>Configuración</span></div>
+  <h1>Configuración</h1>
+  <span class="role-badge admin">👤 Solo Administrador</span>
+
+  <table>
+    <thead><tr><th>Sección</th><th>Qué configurar</th></tr></thead>
+    <tbody>
+      <tr><td>Empresa</td><td>Nombre, email, teléfono, tipo de cambio (botón BNA)</td></tr>
+      <tr><td>Motivos de salida</td><td>Lista editable para movimientos de salida manual</td></tr>
+      <tr><td>Orígenes de entrada</td><td>Lista editable para movimientos de entrada</td></tr>
+      <tr><td>Razones de pausa</td><td>Lista editable para pausar proyectos</td></tr>
+      <tr><td>Control de acceso</td><td>ABM de usuarios, vinculación operario, deshabilitar login</td></tr>
+    </tbody>
+  </table>
+
+  <div class="tip">El tipo de cambio se usa para calcular el costo en U$S cuando no está cargado explícitamente en el componente.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-backup">
+  <div class="breadcrumb">Administrador › <span>Backup</span></div>
+  <h1>Backup y migración</h1>
+  <span class="role-badge admin">👤 Solo Administrador</span>
+
+  <h2>Exportar backup</h2>
+  <p>Botón <strong>⬇️ Exportar JSON</strong> — descarga todos los datos en un archivo JSON con fecha. Guardalo en un lugar seguro regularmente.</p>
+
+  <h2>Drive</h2>
+  <p>Botón <strong>☁️ Drive</strong> — sube el backup automáticamente a Google Drive (requiere estar logueado en Google en el mismo navegador).</p>
+
+  <h2>Importar backup</h2>
+  <div class="warn">Importar un backup reemplaza TODOS los datos actuales. Usá solo para restaurar desde un backup conocido.</div>
+
+  <h2>Archivar movimientos viejos</h2>
+  <p>En el panel de estado de datos, podés archivar movimientos de más de X meses. Los movimientos archivados:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li>Se guardan en <code>movimientosArchivados</code> — no se pierden</li>
+    <li>El stock se sigue calculando correctamente incluyendo los archivados</li>
+    <li>Se exportan en el backup JSON y en el Excel</li>
+    <li>Consultables con el botón "Ver archivados"</li>
+  </ul>
+
+  <h2>Limpiar caché (Service Worker)</h2>
+  <p>Si la app no actualiza después de un deploy, ejecutar en la consola del navegador (<kbd>F12</kbd>):</p>
+  <div style="background:var(--surface2);border-radius:var(--r);padding:12px 16px;font-family:monospace;font-size:12px;color:#ce93d8;margin:10px 0;word-break:break-all">
+    navigator.serviceWorker.getRegistrations().then(r => r.forEach(sw => sw.unregister())); location.reload(true);
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- OPERARIO SECTIONS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-oper-dashboard">
+  <div class="breadcrumb">Operario › <span>Mi dashboard</span></div>
+  <h1>Mi dashboard</h1>
+  <span class="role-badge oper">👷 Operario</span>
+
+  <p class="lead">Al entrar, el dashboard muestra solo los proyectos donde tenés tareas asignadas.</p>
+
+  <div class="card">
+    <h3>Banner de bienvenida</h3>
+    <p>En la parte superior aparece tu nombre, especialidad y un conteo de tus tareas pendientes y atrasadas.</p>
+  </div>
+
+  <div class="card">
+    <h3>Control de proyectos</h3>
+    <p>Cards de tus proyectos activos con el avance físico, días restantes y estado general del proyecto.</p>
+  </div>
+
+  <div class="card">
+    <h3>Alertas automáticas</h3>
+    <p>Al iniciar sesión aparece un aviso si tenés tareas que vencen en los próximos 5 días hábiles o proyectos que deben iniciar mañana.</p>
+  </div>
+
+  <div class="tip">Si no ves algún proyecto que deberías ver, pedile al Administrador que te asigne tareas en ese proyecto y que vincule tu usuario al operario correcto.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-oper-tareas">
+  <div class="breadcrumb">Operario › <span>Mis tareas</span></div>
+  <h1>Mis tareas</h1>
+  <span class="role-badge oper">👷 Operario</span>
+
+  <p>Accedé desde el menú → <strong>📁 Proyectos</strong>. Solo verás los proyectos donde tenés al menos una tarea asignada.</p>
+
+  <h2>Ver las tareas de un proyecto</h2>
+  <div class="steps">
+    <div class="step"><div class="step-n">1</div><div class="step-body"><strong>Click en el proyecto</strong>Botón "Ver" en la fila del proyecto.</div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-body"><strong>Sección Lista de tareas</strong>Se muestra la tabla con todas las tareas del proyecto. Tu nombre aparece en la columna Operario.</div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-body"><strong>Identificar tus tareas</strong>Buscá las filas donde la columna Operario muestra tu nombre.</div></div>
+  </div>
+
+  <h2>Estados que podés ver</h2>
+  <table>
+    <thead><tr><th>Estado</th><th>Significado</th></tr></thead>
+    <tbody>
+      <tr><td><span style="background:var(--blue);color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">En curso</span></td><td>Tarea activa, podés trabajar en ella</td></tr>
+      <tr><td><span style="background:var(--red);color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">Atrasado</span></td><td>La fecha de vencimiento ya pasó — prioridad alta</td></tr>
+      <tr><td><span style="background:#6a1b9a;color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">Pend. confirm.</span></td><td>Marcaste la tarea como terminada, esperando aprobación del admin</td></tr>
+      <tr><td><span style="background:var(--green);color:#fff;padding:1px 8px;border-radius:8px;font-size:11px">OK</span></td><td>Tarea completada y aprobada</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Dependencias</h2>
+  <p>Si ves un badge <span style="background:#3a0000;color:#ef5350;padding:1px 6px;border-radius:4px;font-size:11px">rojo</span> debajo del nombre de tu tarea, significa que hay una tarea predecesora que debe completarse primero. No podrás marcarla como terminada hasta que esa condición se cumpla.</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-oper-avance">
+  <div class="breadcrumb">Operario › <span>Registrar avance</span></div>
+  <h1>Registrar avance</h1>
+  <span class="role-badge oper">👷 Operario</span>
+
+  <h2>Actualizar el avance de una tarea</h2>
+  <div class="steps">
+    <div class="step"><div class="step-n">1</div><div class="step-body"><strong>Abrí la ficha del proyecto</strong>Click en "Ver" desde el módulo Proyectos.</div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-body"><strong>Encontrá tu tarea</strong>En la tabla de tareas, buscá tu nombre en la columna Operario.</div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-body"><strong>Click en ✏️ Editar</strong>Abre el modal de edición de la tarea.</div></div>
+    <div class="step"><div class="step-n">4</div><div class="step-body"><strong>Actualizá el Avance real %</strong>Ingresá el porcentaje de avance (0 a 100). Este valor contribuye al avance total del proyecto.</div></div>
+    <div class="step"><div class="step-n">5</div><div class="step-body"><strong>Guardá</strong>Click en Guardar. El avance se refleja inmediatamente en el dashboard.</div></div>
+  </div>
+
+  <h2>Marcar una tarea como terminada</h2>
+  <p>Cuando terminaste el trabajo de una tarea, tenés dos opciones:</p>
+  <table>
+    <thead><tr><th>Botón</th><th>Cuándo usarlo</th><th>Resultado</th></tr></thead>
+    <tbody>
+      <tr><td><span style="color:var(--green);font-size:16px">✔</span> <strong>Marcar OK</strong></td><td>Cuando el trabajo está completo y no necesita revisión</td><td>Estado OK, avance = 100%</td></tr>
+      <tr><td><span style="color:#ce93d8;font-size:16px">⏳</span> <strong>Pend. confirm.</strong></td><td>Cuando terminaste pero el Admin debe verificar</td><td>Estado Pendiente confirmación</td></tr>
+    </tbody>
+  </table>
+
+  <div class="warn">Si la tarea tiene dependencias bloqueantes (badge rojo), el sistema no te dejará marcarla como terminada. Verificá que las tareas predecesoras estén completas.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-oper-stock">
+  <div class="breadcrumb">Operario › <span>Consultar stock</span></div>
+  <h1>Consultar stock</h1>
+  <span class="role-badge oper">👷 Operario</span>
+
+  <p>Podés consultar el stock y el catálogo de componentes en modo <strong>solo lectura</strong>.</p>
+
+  <h2>Stock actual</h2>
+  <p>Menú → <strong>🗃️ Stock actual</strong>. Muestra todos los componentes con cantidad disponible, ubicación (cajonera y número de cajón) y valor total.</p>
+
+  <h2>Catálogo</h2>
+  <p>Menú → <strong>📋 Catálogo</strong>. Búsqueda por código o descripción. No podés crear ni editar componentes.</p>
+
+  <div class="info">Si necesitás un componente que no está en stock, informale al Administrador para que genere una orden de compra.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-glosario">
+  <div class="breadcrumb">Referencia › <span>Glosario</span></div>
+  <h1>Glosario</h1>
+
+  <table>
+    <thead><tr><th>Término</th><th>Definición</th></tr></thead>
+    <tbody>
+      <tr><td><strong>BAC</strong></td><td>Budget At Completion — presupuesto total del proyecto</td></tr>
+      <tr><td><strong>CPI</strong></td><td>Cost Performance Index — eficiencia del costo (EV/AC). &gt;1 = bajo presupuesto</td></tr>
+      <tr><td><strong>Depósito transitorio</strong></td><td>Material reservado para un proyecto en Planificado, aún no asignado formalmente</td></tr>
+      <tr><td><strong>EAC</strong></td><td>Estimate At Completion — costo total estimado al finalizar el proyecto</td></tr>
+      <tr><td><strong>Entrega parcial</strong></td><td>Proyecto aprobado donde algún material está pendiente de recibir vía OC</td></tr>
+      <tr><td><strong>EV</strong></td><td>Earned Value — valor ganado = avance físico % × BAC</td></tr>
+      <tr><td><strong>FF</strong></td><td>Fin-Fin — dependencia entre tareas: B no termina hasta que A termine</td></tr>
+      <tr><td><strong>FI</strong></td><td>Fin-Inicio — dependencia: B no inicia hasta que A termine (la más común)</td></tr>
+      <tr><td><strong>IF</strong></td><td>Inicio-Fin — dependencia: B no termina hasta que A inicie</td></tr>
+      <tr><td><strong>II</strong></td><td>Inicio-Inicio — dependencia: B no inicia hasta que A inicie</td></tr>
+      <tr><td><strong>KPI</strong></td><td>Key Performance Indicator — indicador clave de rendimiento</td></tr>
+      <tr><td><strong>MO</strong></td><td>Mano de obra — costo de trabajo humano en una tarea</td></tr>
+      <tr><td><strong>OC</strong></td><td>Orden de compra — solicitud formal a un proveedor</td></tr>
+      <tr><td><strong>OC de reserva</strong></td><td>OC generada automáticamente por faltante de material en un proyecto</td></tr>
+      <tr><td><strong>PV</strong></td><td>Planned Value — valor planificado = % tiempo transcurrido × BAC</td></tr>
+      <tr><td><strong>SPI</strong></td><td>Schedule Performance Index — eficiencia del cronograma (EV/PV). &gt;1 = adelantado</td></tr>
+      <tr><td><strong>VAC</strong></td><td>Variance At Completion — variación al completar = BAC - EAC</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-atajos">
+  <div class="breadcrumb">Referencia › <span>Atajos y tips</span></div>
+  <h1>Atajos y tips</h1>
+
+  <h2>Limpiar caché del navegador</h2>
+  <p>Si la app no actualiza después de un deploy:</p>
+  <div style="background:var(--surface2);border-radius:var(--r);padding:12px 16px;font-family:monospace;font-size:12px;color:#ce93d8;margin:10px 0;word-break:break-all">
+    navigator.serviceWorker.getRegistrations().then(r => r.forEach(sw => sw.unregister())); location.reload(true);
+  </div>
+
+  <h2>Tips de uso diario</h2>
+  <table>
+    <thead><tr><th>Situación</th><th>Tip</th></tr></thead>
+    <tbody>
+      <tr><td>Buscar un componente al agregar material</td><td>Escribí código o descripción en el campo — filtra automáticamente. Muestra el stock disponible debajo.</td></tr>
+      <tr><td>Ver stock de un componente antes de planificar</td><td>El campo de selección de material muestra el stock actual entre corchetes [N]</td></tr>
+      <tr><td>El dashboard no muestra un proyecto</td><td>Los Operarios solo ven proyectos donde tienen tareas asignadas. Pedile al Admin que te asigne.</td></tr>
+      <tr><td>No puedo marcar una tarea como OK</td><td>Verificá si tiene dependencias bloqueantes (badges rojos) o si hay una OC de reserva pendiente de recibir.</td></tr>
+      <tr><td>Los KPIs no aparecen</td><td>El proyecto necesita presupuesto cargado y tareas con peso % asignado.</td></tr>
+      <tr><td>El avance físico no cambia</td><td>El avance se calcula desde el campo "Avance real %" de cada tarea ponderado por su Peso %. Actualizá ese campo.</td></tr>
+      <tr><td>Agregar una nueva razón de pausa</td><td>Al pausar un proyecto, elegí "Otro (agregar a lista)..." e ingresá la nueva razón.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Backup recomendado</h2>
+  <div class="tip">Exportar un backup JSON al menos una vez por semana y subir a Drive. Los datos se guardan en el navegador (localStorage) — si se limpia el caché del navegador sin backup, se pierden.</div>
+</section>
+
+</main>
+
+<script>
+var currentSection='intro';
+var currentRol='admin';
+
+function goTo(id){
+  // Ocultar todos
+  document.querySelectorAll('section').forEach(function(s){s.classList.remove('active');});
+  // Mostrar el target
+  var el=document.getElementById('s-'+id);
+  if(el) el.classList.add('active');
+  // Actualizar nav
+  document.querySelectorAll('nav a').forEach(function(a){a.classList.remove('active');});
+  // Scroll al top
+  document.querySelector('main').scrollTop=0;
+  window.scrollTo(0,0);
+  currentSection=id;
+}
+
+function setRol(rol){
+  currentRol=rol;
+  var adminSec=document.getElementById('nav-admin-section');
+  var operSec=document.getElementById('nav-oper-section');
+  if(rol==='admin'){
+    adminSec.style.display='';
+    operSec.style.display='none';
+  } else {
+    adminSec.style.display='none';
+    operSec.style.display='';
+    // Si está en sección de admin, ir a dashboard operario
+    if(!currentSection.startsWith('oper-')) goTo('oper-dashboard');
+  }
+}
+
+// Init
+document.getElementById('nav-oper-section').style.display='none';
+</script>
+
+</body>
+</html>
