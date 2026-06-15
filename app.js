@@ -1334,9 +1334,10 @@ function abrirProyecto(id){
         var val=(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
         var sobrante=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
         // Buscar tarea vinculada
-        var tareaLabel='--';
-        if(m.tareaIdx!==undefined&&p.tareas&&p.tareas[m.tareaIdx]){
-          tareaLabel='<span style="font-size:10px;background:var(--surface3);padding:1px 6px;border-radius:8px">'+p.tareas[m.tareaIdx].desc.slice(0,30)+'</span>';
+        var tareaLabel='<span style="font-size:10px;color:var(--text3)">--</span>';
+        if(m.tareaIdx!==undefined&&m.tareaIdx!==null&&p.tareas&&p.tareas[m.tareaIdx]){
+          tareaLabel='<span style="font-size:10px;background:var(--surface3);padding:1px 6px;border-radius:8px">'+p.tareas[m.tareaIdx].desc.slice(0,28)+'</span>'+
+            (!esFin?'<button class="btn btn-sm" style="color:var(--text3);margin-left:4px;padding:1px 5px" onclick="desvincularMaterialTarea('+id+','+mi+')" title="Desvincular">✕</button>':'');
         }
         return '<tr style="border-bottom:1px solid var(--border)">'+
           '<td style="padding:5px 10px;font-size:11px;font-family:monospace">'+comp.codigo+'</td>'+
@@ -1856,6 +1857,18 @@ function agregarMaterialProyecto(projId){
       setTimeout(function(){abrirProyecto(projId);},100);
       return true;
     });
+}
+
+function desvincularMaterialTarea(projId, matIdx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.materiales[matIdx]) return;
+  var m=p.materiales[matIdx];
+  var comp=compById(m.compId)||{desc:'?'};
+  var tareaAntes=m.tareaIdx!==undefined&&p.tareas&&p.tareas[m.tareaIdx]?p.tareas[m.tareaIdx].desc:'--';
+  delete m.tareaIdx;
+  p.historial.push({fecha:today(),accion:'Material "'+comp.desc+'" desvinculado de tarea "'+tareaAntes+'"'});
+  save();
+  setTimeout(function(){abrirProyecto(projId);},100);
 }
 
 function quitarMaterialProyecto(projId, idx){
