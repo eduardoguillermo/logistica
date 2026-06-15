@@ -3954,19 +3954,24 @@ function renderDashProy(){
 
   if(!lista.length){h+='<div class="empty">Sin proyectos registrados.</div>';el.innerHTML=h;return;}
 
-  // ── 1. BURBUJAS DE ESTADO ─────────────────────────────
-  var conteos={Planificado:0,'En curso':0,Pausado:0,Finalizado:0};
+  // ── 1. ESTADO GENERAL ─────────────────────────────────
+  var conteos={Planificado:0,'En curso':0,Pausado:0,Finalizado:0,Cancelado:0};
   lista.forEach(function(p){if(conteos[p.estado]!==undefined) conteos[p.estado]++;});
-  var colEstado={Planificado:'var(--amber)','En curso':'var(--blue)',Pausado:'#888',Finalizado:'var(--green)'};
+  var colEstado={Planificado:'var(--amber)','En curso':'var(--blue)',Pausado:'#888',Finalizado:'var(--green)',Cancelado:'var(--red)'};
+  var bgEstado={Planificado:'#2a1a00','En curso':'#0a1a3a',Pausado:'#1a1a1a',Finalizado:'#0a2a0a',Cancelado:'#2a0a0a'};
+  var total=lista.length||1;
 
   h+='<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Estado general</div></div><div class="card-body">'+
-    '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;justify-content:center;padding:8px 0">';
+    '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">';
   Object.keys(conteos).forEach(function(est){
     var n=conteos[est];
-    var size=Math.max(60,Math.min(120,40+n*20));
-    h+='<div style="display:flex;flex-direction:column;align-items:center;gap:8px">'+
-      '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+colEstado[est]+';display:flex;align-items:center;justify-content:center;font-size:'+Math.max(18,size*0.35)+'px;font-weight:900;color:#fff;opacity:'+(n>0?1:0.25)+';transition:all .3s">'+n+'</div>'+
-      '<div style="font-size:11px;color:var(--text2);text-align:center">'+est+'</div>'+
+    var pct=Math.round(n/total*100);
+    var col=colEstado[est];
+    var bg=bgEstado[est];
+    h+='<div style="background:'+bg+';border-left:4px solid '+col+';border-radius:0 var(--r) var(--r) 0;padding:12px 14px;opacity:'+(n>0?1:0.4)+'">'+
+      '<div style="font-size:32px;font-weight:900;color:'+col+';line-height:1">'+n+'</div>'+
+      '<div style="font-size:12px;font-weight:700;color:var(--text);margin-top:4px">'+est+'</div>'+
+      '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+pct+'% del total</div>'+
     '</div>';
   });
   h+='</div></div></div>';
