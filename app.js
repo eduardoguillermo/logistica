@@ -4771,17 +4771,16 @@ function renderDashboard(){
 
   h += '</div>';
 
-  // Panel depositos transitorios
   // Panel depósitos transitorios — colapsable
-  h += '<div class="card" style="margin-top:14px;border-color:#6a1b9a">';
-      '<div class="ch" style="border-color:#6a1b9a;cursor:pointer" onclick="togglePanel(\'dash-dep-trans\')">'+
-        '<div class="ct" style="color:#ce93d8">📦 Depósitos transitorios ('+depositosTransitorios.length+')</div>'+
-        '<span id="dash-dep-trans-ico" style="color:#ce93d8;font-size:14px">▼</span>'+
-      '</div>'+
-      '<div id="dash-dep-trans" style="display:none"><div class="card-body">';
-    if(!depositosTransitorios.length){
-      h += '<div class="card-body"><div class="empty">Sin depósitos transitorios.</div></div>';
-    } else {
+  h += '<div class="card" style="margin-top:14px;border-color:#6a1b9a">'+
+    '<div class="ch" style="border-color:#6a1b9a;cursor:pointer" onclick="togglePanel(\'dash-dep-trans\')">'+
+      '<div class="ct" style="color:#ce93d8">📦 Depósitos transitorios ('+depositosTransitorios.length+')</div>'+
+      '<span id="dash-dep-trans-ico" style="color:#ce93d8;font-size:14px">▼</span>'+
+    '</div>'+
+    '<div id="dash-dep-trans" style="display:none"><div class="card-body">';
+  if(!depositosTransitorios.length){
+    h += '<div class="empty">Sin depósitos transitorios.</div>';
+  } else {
     depositosTransitorios.forEach(function(p,idx){
       var itemsReservados=(p.materiales||[]).filter(function(m){return m.reservado;});
       var valorReserva=itemsReservados.reduce(function(a,m){
@@ -4817,7 +4816,7 @@ function renderDashboard(){
           '</div>':'')+
       '</div>';
     });
-    }
+  }
   h += '</div></div></div>';
 
   // Panel OC pendientes — colapsable
@@ -4866,14 +4865,16 @@ function renderDashboard(){
   }
   h += '</div></div></div>';
 
-  // Panel entregas parciales — colapsable
-  if(entregasParciales.length){
-    h += '<div class="card" style="margin-top:14px;border-color:#E65100">'+
-      '<div class="ch" style="border-color:#E65100;cursor:pointer" onclick="togglePanel(\'dash-ent-parc\')">'+
-        '<div class="ct" style="color:#ffa726">📬 Entregas parciales ('+entregasParciales.length+')</div>'+
-        '<span id="dash-ent-parc-ico" style="color:#ffa726;font-size:14px">▼</span>'+
-      '</div>'+
-      '<div id="dash-ent-parc" style="display:none"><div class="card-body">';
+  // Panel entregas parciales — colapsable (siempre visible)
+  h += '<div class="card" style="margin-top:14px;border-color:#E65100">'+
+    '<div class="ch" style="border-color:#E65100;cursor:pointer" onclick="togglePanel(\'dash-ent-parc\')">'+
+      '<div class="ct" style="color:#ffa726">📬 Entregas parciales ('+entregasParciales.length+')</div>'+
+      '<span id="dash-ent-parc-ico" style="color:#ffa726;font-size:14px">▼</span>'+
+    '</div>'+
+    '<div id="dash-ent-parc" style="display:none"><div class="card-body">';
+  if(!entregasParciales.length){
+    h += '<div class="empty">Sin entregas parciales pendientes.</div>';
+  } else {
     entregasParciales.forEach(function(p,idx){
       var matPendientes=(p.materiales||[]).filter(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
       var ocVinculadas=DB.ordenes.filter(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada'&&o.estado!=='Recibida';});
@@ -4915,6 +4916,7 @@ function renderDashboard(){
     });
     h += '</div></div></div>';
   }
+  h += '</div></div></div>';
 
   // Control de proyectos
   var hoy2=today();
