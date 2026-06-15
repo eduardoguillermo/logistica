@@ -4031,12 +4031,10 @@ function renderDashboard(){
     h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px">';
 
     proyControl.forEach(function(p){
-      // Avance fisico ponderado
       var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
       var avFisico=pesoTotal>0?Math.round((p.tareas||[]).reduce(function(a,t){
         return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;
       },0)):null;
-      // Avance tiempo
       var avTiempo=null,diasRestantes=null;
       if(p.fechaInicio&&p.fechaEstFin){
         var ini=new Date(p.fechaInicio);
@@ -4045,100 +4043,86 @@ function renderDashboard(){
         avTiempo=Math.min(100,Math.max(0,Math.round((hoyD-ini)/(fin-ini)*100)));
         diasRestantes=Math.round((fin-hoyD)/86400000);
       }
-      // Semaforo
-      var semColor='var(--text3)',semLabel='Sin datos',semBg='#1a1a1a',semBorder='var(--border)';
-      if(avFisico!==null&&avTiempo!==null){
-        var diff=avFisico-avTiempo;
-        if(diff>=5){semColor='#66bb6a';semLabel='Adelantado';semBg='#0a2a0a';semBorder='#2e7d32';}
-        else if(diff>=-10){semColor='#ffb74d';semLabel='En línea';semBg='#2a1a00';semBorder='#E65100';}
-        else{semColor='#ef5350';semLabel='Atrasado';semBg='#3a0000';semBorder='#7f0000';}
-      }
-      // Tareas
+      var semColor='var(--green)',semLabel='Adelantado',semBg='#0a2a0a';
+      if(avFisico===null||avTiempo===null){semColor='var(--text2)';semLabel='Sin datos';semBg='var(--surface2)';}
+      else{var diff=avFisico-avTiempo;if(diff<-10){semColor='var(--red)';semLabel='Atrasado';semBg='rgba(239,83,80,0.06)';}else if(diff<5){semColor='var(--amber)';semLabel='En línea';semBg='rgba(255,167,38,0.06)';}}
       var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
       var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
       var tareasTot=(p.tareas||[]).length;
-      // Presupuesto
       var presup=parseFloat(p.presupuesto)||0;
-      var erogMat=(p.materiales||[]).reduce(function(a,m){
-        var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
-        var entregado=m.reservado?0:(parseFloat(m.entregado)||parseFloat(m.cant)||0);
-        return a+entregado*(parseFloat(comp.costo)||0);
-      },0);
+      var erogMat=(p.materiales||[]).reduce(function(a,m){var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};var ent=m.reservado?0:(parseFloat(m.entregado)||parseFloat(m.cant)||0);return a+ent*(parseFloat(comp.costo)||0);},0);
       var erogMO=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
       var erogTotal=erogMat+erogMO;
       var pctPresup=presup>0?Math.min(200,Math.round(erogTotal/presup*100)):null;
       var superaPresup=presup>0&&erogTotal>presup;
-      var diasColor=diasRestantes===null?'var(--text3)':diasRestantes<0?'#ef5350':diasRestantes<=7?'#ffb74d':'#66bb6a';
+      var diasColor=diasRestantes===null?'var(--text2)':diasRestantes<0?'var(--red)':diasRestantes<=7?'var(--amber)':'var(--green)';
 
-      h += '<div class="card" style="border-color:'+semBorder+';cursor:pointer;transition:box-shadow .15s" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+
-        // HEADER estilo operarios
-        '<div class="ch" style="border-color:'+semBorder+'">'+
+      h += '<div class="card" style="background:'+semBg+'">'+
+        // CH igual que operarios
+        '<div class="ch">'+
           '<div style="display:flex;align-items:center;gap:10px">'+
-            // Avatar con inicial del proyecto
-            '<div style="width:36px;height:36px;border-radius:var(--r);background:'+semBg+';border:2px solid '+semBorder+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:'+semColor+';flex-shrink:0">'+
-              (p.numero||'?').replace('PRY-','')+
+            '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#fff;flex-shrink:0;letter-spacing:-1px">'+
+              (p.numero||'').replace('PRY-','')+
             '</div>'+
             '<div>'+
               '<div style="font-weight:700;font-size:13px">'+p.nombre+'</div>'+
-              '<div style="font-size:10px;color:var(--text2);margin-top:1px">'+p.numero+(p.prioridad?' &middot; '+p.prioridad:'')+'</div>'+
+              '<div style="font-size:11px;color:var(--text2)">'+p.numero+(p.prioridad?' &middot; '+p.prioridad:'')+'</div>'+
             '</div>'+
           '</div>'+
-          '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">'+
+          '<div style="display:flex;gap:4px;align-items:center">'+
             proyEstadoPill(p.estado)+
-            '<span style="background:'+semBg+';color:'+semColor+';padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;border:1px solid '+semBorder+'">'+semLabel+'</span>'+
+            '<span style="color:'+semColor+';font-size:10px;font-weight:700">'+semLabel+'</span>'+
           '</div>'+
         '</div>'+
+        // BODY
         '<div class="card-body">'+
-          // BARRAS
-          '<div style="margin-bottom:10px">'+
-            '<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px">'+
-              '<span style="color:var(--text2)">Avance físico (MO)</span>'+
-              '<span style="font-weight:700;color:'+(avFisico===null?'var(--text3)':'#4fc3f7')+'">'+
-                (avFisico===null?'Sin datos':avFisico+'%')+
-              '</span>'+
-            '</div>'+
-            '<div style="background:var(--surface3);border-radius:3px;height:8px;overflow:hidden">'+
-              (avFisico!==null?'<div style="height:100%;background:'+(avFisico>=100?'#66bb6a':'#4fc3f7')+';width:'+avFisico+'%;transition:width .3s"></div>':'')+
-            '</div>'+
-            '<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px;margin-top:6px">'+
-              '<span style="color:var(--text2)">Avance tiempo</span>'+
-              '<span style="font-weight:700;color:'+(avTiempo===null?'var(--text3)':avTiempo>=100?'#ef5350':'var(--text2)')+'">'+
-                (avTiempo===null?'Sin fechas':avTiempo+'%')+
-              '</span>'+
-            '</div>'+
-            '<div style="background:var(--surface3);border-radius:3px;height:8px;overflow:hidden">'+
-              (avTiempo!==null?'<div style="height:100%;background:'+(avTiempo>=100?'#ef5350':'#555')+';width:'+avTiempo+'%;transition:width .3s"></div>':'')+
-            '</div>'+
-          '</div>'+
-          // STATS GRID 4 cajas
-          '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:'+(presup>0?'10':'0')+'px">'+
-            '<div style="background:var(--surface3);border-radius:5px;padding:6px 4px;text-align:center">'+
-              '<div style="font-size:14px;font-weight:700;color:'+diasColor+'">'+(diasRestantes===null?'--':Math.abs(diasRestantes))+'</div>'+
-              '<div style="font-size:9px;color:var(--text2);white-space:nowrap">'+(diasRestantes!==null&&diasRestantes<0?'días venc.':'días rest.')+'</div>'+
-            '</div>'+
-            '<div style="background:var(--surface3);border-radius:5px;padding:6px 4px;text-align:center">'+
-              '<div style="font-size:14px;font-weight:700;color:'+(tareasOK===tareasTot&&tareasTot>0?'#66bb6a':'var(--text)')+'">'+tareasOK+'/'+tareasTot+'</div>'+
-              '<div style="font-size:9px;color:var(--text2)">tareas OK</div>'+
-            '</div>'+
-            '<div style="background:var(--surface3);border-radius:5px;padding:6px 4px;text-align:center">'+
-              '<div style="font-size:14px;font-weight:700;color:'+(tareasAt>0?'#ef5350':'var(--text3)')+'">'+tareasAt+'</div>'+
-              '<div style="font-size:9px;color:var(--text2)">atrasadas</div>'+
-            '</div>'+
-            '<div style="background:var(--surface3);border-radius:5px;padding:6px 4px;text-align:center">'+
-              '<div style="font-size:13px;font-weight:700;color:'+(pctPresup===null?'var(--text3)':superaPresup?'#ef5350':'#66bb6a')+'">'+
-                (pctPresup===null?'--':pctPresup+'%')+
+          // Stats 4 cajas
+          '<div style="display:flex;gap:8px;margin-bottom:10px">'+
+            '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px;text-align:center;flex:1">'+
+              '<div style="font-size:14px;font-weight:700;color:'+(avFisico===null?'var(--text2)':avFisico>=100?'var(--green)':'var(--blue)')+'">'+
+                (avFisico===null?'--':avFisico+'%')+
               '</div>'+
-              '<div style="font-size:9px;color:var(--text2)">ejec. $</div>'+
+              '<div style="font-size:9px;color:var(--text2)">Físico</div>'+
+            '</div>'+
+            '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px;text-align:center;flex:1">'+
+              '<div style="font-size:14px;font-weight:700;color:'+(avTiempo===null?'var(--text2)':avTiempo>=100?'var(--red)':'var(--text2)')+'">'+
+                (avTiempo===null?'--':avTiempo+'%')+
+              '</div>'+
+              '<div style="font-size:9px;color:var(--text2)">Tiempo</div>'+
+            '</div>'+
+            '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px;text-align:center;flex:1">'+
+              '<div style="font-size:14px;font-weight:700;color:'+(tareasAt>0?'var(--red)':tareasOK===tareasTot&&tareasTot>0?'var(--green)':'var(--text)')+'">'+tareasOK+'/'+tareasTot+'</div>'+
+              '<div style="font-size:9px;color:var(--text2)">Tareas</div>'+
+            '</div>'+
+            '<div style="background:var(--surface3);border-radius:5px;padding:6px 10px;text-align:center;flex:1">'+
+              '<div style="font-size:14px;font-weight:700;color:'+diasColor+'">'+
+                (diasRestantes===null?'--':Math.abs(diasRestantes))+
+              '</div>'+
+              '<div style="font-size:9px;color:var(--text2)">'+(diasRestantes!==null&&diasRestantes<0?'vencido':'días')+' </div>'+
             '</div>'+
           '</div>'+
-          // BARRA PRESUPUESTO
-          (presup>0?
-            '<div style="background:var(--surface3);border-radius:3px;height:5px;overflow:hidden">'+
-              '<div style="height:100%;background:'+(superaPresup?'#ef5350':pctPresup>=80?'#ffb74d':'#66bb6a')+';width:'+Math.min(100,pctPresup||0)+'%"></div>'+
+          // Barra fisica
+          '<div style="font-size:10px;color:var(--text2);margin-bottom:3px;display:flex;justify-content:space-between">'+
+            '<span>Avance físico</span><span style="font-weight:700;color:var(--text)">'+(avFisico===null?'--':avFisico+'%')+'</span>'+
+          '</div>'+
+          '<div style="background:var(--surface3);border-radius:3px;height:6px;overflow:hidden;margin-bottom:8px">'+
+            (avFisico!==null?'<div style="height:100%;background:'+(avFisico>=100?'var(--green)':'var(--blue)')+';width:'+avFisico+'%"></div>':'')+
+          '</div>'+
+          // Barra tiempo
+          '<div style="font-size:10px;color:var(--text2);margin-bottom:3px;display:flex;justify-content:space-between">'+
+            '<span>Avance tiempo</span><span style="font-weight:700;color:var(--text)">'+(avTiempo===null?'--':avTiempo+'%')+'</span>'+
+          '</div>'+
+          '<div style="background:var(--surface3);border-radius:3px;height:6px;overflow:hidden'+(presup?';margin-bottom:8px':'')+'">'+
+            (avTiempo!==null?'<div style="height:100%;background:'+(avTiempo>=100?'var(--red)':'#555')+';width:'+avTiempo+'%"></div>':'')+
+          '</div>'+
+          // Presupuesto si tiene
+          (presup?
+            '<div style="font-size:10px;color:var(--text2);margin-bottom:3px;display:flex;justify-content:space-between">'+
+              '<span>Ejecución presup.</span>'+
+              '<span style="font-weight:700;color:'+(superaPresup?'var(--red)':'var(--green)')+'">'+(pctPresup||0)+'% &mdash; $'+Math.round(erogTotal).toLocaleString('es-AR')+'</span>'+
             '</div>'+
-            '<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text2);margin-top:3px">'+
-              '<span>Erogado: $'+Math.round(erogTotal).toLocaleString('es-AR')+'</span>'+
-              '<span>Presup: $'+Math.round(presup).toLocaleString('es-AR')+'</span>'+
+            '<div style="background:var(--surface3);border-radius:3px;height:6px;overflow:hidden">'+
+              '<div style="height:100%;background:'+(superaPresup?'var(--red)':pctPresup>=80?'var(--amber)':'var(--green)')+';width:'+Math.min(100,pctPresup||0)+'%"></div>'+
             '</div>':'')+
         '</div>'+
       '</div>';
