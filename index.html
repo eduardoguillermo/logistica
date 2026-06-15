@@ -191,6 +191,7 @@ function iniciarSplash(){
     <div class="nav-section-title">Operaciones</div>
     <a id="nav-dashboard" onclick="goTo('dashboard')">🏠 Dashboard</a>
     <a id="nav-proyectos" onclick="goTo('proyectos')">📁 Proyectos</a>
+    <a id="nav-dashproy" onclick="goTo('dashproy')">📊 Dashboard proyectos</a>
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Inventario</div>
@@ -340,6 +341,7 @@ function iniciarSplash(){
 
     <!-- PROYECTOS -->
     <div class="panel" id="panel-proyectos">
+      <div id="proy-body-toggle"></div>
       <div id="proj-stats" class="stats"></div>
       <div class="sbar" style="flex-wrap:wrap;gap:8px">
         <input type="text" id="q-proj" placeholder="🔍 Buscar proyecto..." oninput="renderProyectos()" style="flex:1;min-width:140px">
@@ -363,6 +365,11 @@ function iniciarSplash(){
     </div>
 
     <!-- ORDENES -->
+    <!-- DASHBOARD PROYECTOS -->
+    <div class="panel" id="panel-dashproy">
+      <div id="dashproy-body"></div>
+    </div>
+
     <div class="panel" id="panel-ordenes">
       <div class="sbar">
         <input type="text" id="q-ord" placeholder="🔍 Buscar..." oninput="renderOrdenes()">
