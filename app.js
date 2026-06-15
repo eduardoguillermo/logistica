@@ -1227,6 +1227,22 @@ function abrirProyecto(id){
         '</div>';
       })()+
     '</div>'+
+    // Historial de cambios de presupuesto
+    ((p.logPresupuesto||[]).length?
+      '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 14px;margin-bottom:12px">'+
+        '<div style="font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Historial de presupuesto</div>'+
+        '<table style="width:100%;border-collapse:collapse">'+
+          (p.logPresupuesto||[]).slice().reverse().map(function(l){
+            var subio=l.nuevo>l.anterior;
+            return '<tr style="border-bottom:1px solid var(--border)">'+
+              '<td style="padding:4px 8px;font-size:10px;color:var(--text2)">'+l.fecha+'</td>'+
+              '<td style="padding:4px 8px;font-size:10px;text-decoration:line-through;color:var(--text2)">$'+Math.round(l.anterior).toLocaleString('es-AR')+'</td>'+
+              '<td style="padding:4px 8px;font-size:10px;font-weight:700;color:'+(subio?'var(--amber)':'var(--green)')+'">$'+Math.round(l.nuevo).toLocaleString('es-AR')+' '+(subio?'▲':'▼')+'</td>'+
+              '<td style="padding:4px 8px;font-size:10px;color:var(--text2)">'+l.causa+'</td>'+
+            '</tr>';
+          }).join('')+
+        '</table>'+
+      '</div>':'')+''+
     // KPIs Valor Ganado
     (function(){
       var presup=parseFloat(p.presupuesto)||0;
@@ -1750,14 +1766,47 @@ function actualizarAvance(id, val){
 function editarPresupuestoProyecto(id){
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
-  openModal('Presupuesto del proyecto',
-    '<div class="fg">'+
-      '<label>Presupuesto total ($)</label>'+
-      '<input id="ep-pres" type="number" min="0" value="'+(p.presupuesto||0)+'" style="width:100%">'+
+  var logPresup=p.logPresupuesto||[];
+
+  openModal('Presupuesto del proyecto — '+p.numero,
+    '<div class="fg2">'+
+      '<div class="fg full"><label>Presupuesto total ($)</label>'+
+        '<input id="ep-pres" type="number" min="0" value="'+(p.presupuesto||0)+'" style="width:100%"></div>'+
+      '<div class="fg full"><label>Causa del cambio *</label>'+
+        '<input id="ep-causa" placeholder="Ej: Ampliación de alcance, ajuste por inflación..." style="width:100%"></div>'+
+      (logPresup.length?
+        '<div class="fg full" style="grid-column:1/-1">'+
+          '<div style="font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Historial de cambios</div>'+
+          '<table style="width:100%;border-collapse:collapse">'+
+            '<thead><tr style="background:var(--surface2)">'+
+              '<th style="padding:4px 8px;font-size:10px">Fecha</th>'+
+              '<th style="padding:4px 8px;font-size:10px;text-align:right">Anterior</th>'+
+              '<th style="padding:4px 8px;font-size:10px;text-align:right">Nuevo</th>'+
+              '<th style="padding:4px 8px;font-size:10px">Causa</th>'+
+            '</tr></thead><tbody>'+
+            logPresup.slice().reverse().map(function(l){
+              var subio=l.nuevo>l.anterior;
+              return '<tr style="border-bottom:1px solid var(--border)">'+
+                '<td style="padding:4px 8px;font-size:10px;color:var(--text2)">'+l.fecha+'</td>'+
+                '<td style="padding:4px 8px;font-size:10px;text-align:right;text-decoration:line-through;color:var(--text2)">$'+Math.round(l.anterior).toLocaleString('es-AR')+'</td>'+
+                '<td style="padding:4px 8px;font-size:10px;text-align:right;font-weight:700;color:'+(subio?'var(--amber)':'var(--green)')+'">$'+Math.round(l.nuevo).toLocaleString('es-AR')+' '+(subio?'▲':'▼')+'</td>'+
+                '<td style="padding:4px 8px;font-size:10px">'+l.causa+'</td>'+
+              '</tr>';
+            }).join('')+
+          '</tbody></table>'+
+        '</div>':'')+''+
     '</div>',
     function(){
-      p.presupuesto=parseFloat(document.getElementById('ep-pres').value)||0;
-      p.historial.push({fecha:today(),accion:'Presupuesto actualizado a $'+Math.round(p.presupuesto).toLocaleString('es-AR')});
+      var nuevo=parseFloat(document.getElementById('ep-pres').value)||0;
+      var causa=(document.getElementById('ep-causa').value||'').trim();
+      if(!causa){alert('La causa del cambio es obligatoria.');return false;}
+      var anterior=parseFloat(p.presupuesto)||0;
+      if(!p.logPresupuesto) p.logPresupuesto=[];
+      if(nuevo!==anterior){
+        p.logPresupuesto.push({fecha:today(),anterior:anterior,nuevo:nuevo,causa:causa});
+        p.historial.push({fecha:today(),accion:'Presupuesto: $'+Math.round(anterior).toLocaleString('es-AR')+' → $'+Math.round(nuevo).toLocaleString('es-AR')+' ('+causa+')'});
+      }
+      p.presupuesto=nuevo;
       save();cerrarModal();setTimeout(function(){abrirProyecto(id);},100);return true;
     });
 }
