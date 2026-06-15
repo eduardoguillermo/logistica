@@ -1179,7 +1179,7 @@ function abrirProyecto(id){
       '</div>':'')+''+
     // BARRA DE ACCIONES STICKY
     (!esFin?
-      '<div style="position:sticky;top:0;z-index:10;background:#1e1e2e;border-bottom:2px solid var(--primary);padding:10px 14px;margin:-12px -16px 16px -16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'+
+      '<div style="position:sticky;top:0;z-index:10;background:#1e1e2e;border-bottom:2px solid var(--primary);padding:10px 16px;margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-radius:var(--r) var(--r) 0 0">'+
         (esPlanif?
           '<button class="btn btn-p" style="font-size:12px;padding:6px 14px" onclick="confirmarPlanificacion('+id+')">✅ Confirmar planificacion</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarMaterialProyecto('+id+')">&#x2795; Material</button>'+
@@ -1550,7 +1550,40 @@ function abrirProyecto(id){
       }).join('')+'</div>';
   }
 
-  openModal('Proyecto '+p.numero, body, null, true);
+  // Breadcrumb + contenido en panel drill-down
+  var breadcrumb='<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">'+
+    '<button class="btn btn-sm" onclick="cerrarFichaProyecto()" style="display:flex;align-items:center;gap:4px">'+
+      '← Proyectos'+
+    '</button>'+
+    '<span style="color:var(--text3)">›</span>'+
+    '<span style="font-size:12px;color:var(--text2)">'+p.numero+'</span>'+
+    '<span style="color:var(--text3)">›</span>'+
+    '<span style="font-size:12px;font-weight:700">'+p.nombre+'</span>'+
+    proyEstadoPill(p.estado)+
+  '</div>';
+
+  var ficha=document.getElementById('proy-ficha');
+  var lista=document.getElementById('proy-lista');
+  if(ficha&&lista){
+    lista.style.display='none';
+    ficha.style.display='block';
+    ficha.innerHTML=breadcrumb+'<div>'+body+'</div>';
+    // Scroll al top del panel
+    ficha.scrollTop=0;
+    var panel=document.getElementById('panel-proyectos');
+    if(panel) panel.scrollTop=0;
+    window.scrollTo(0,0);
+  }
+}
+
+function cerrarFichaProyecto(){
+  var ficha=document.getElementById('proy-ficha');
+  var lista=document.getElementById('proy-lista');
+  if(ficha&&lista){
+    ficha.style.display='none';
+    ficha.innerHTML='';
+    lista.style.display='block';
+  }
 }
 
 function agregarTareaProyecto(id){
