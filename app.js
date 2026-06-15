@@ -189,6 +189,22 @@ function cerrarSesion(){
 function esAdmin(){return _usuarioActual&&_usuarioActual.rol==='Administrador';}
 function esOperador(){return _usuarioActual&&_usuarioActual.rol==='Operador';}
 
+function operarioDelUsuario(){
+  if(!_usuarioActual||esAdmin()) return null;
+  var u=(DB.config.usuarios||[]).find(function(x){return x.nombre===_usuarioActual.nombre;});
+  if(!u||!u.operarioId) return null;
+  return (DB.operarios||[]).find(function(o){return o.id===u.operarioId;})||null;
+}
+
+function proyectosDelOperario(){
+  var op=operarioDelUsuario();
+  if(!op) return DB.proyectos||[];
+  // Solo proyectos donde el operario tiene al menos una tarea asignada
+  return (DB.proyectos||[]).filter(function(p){
+    return (p.tareas||[]).some(function(t){return t.operario===op.id;});
+  });
+}
+
 function _aplicarRestriccionesNav(){
   var restringidos=['nav-config','nav-backup'];
   if(esAdmin()){
@@ -908,15 +924,20 @@ function tareaPill(estado){
 }
 
 function getNumProj(){
-  var yr = new Date().getFullYear();
-  var max = 0;
+  var max=0;
   (DB.proyectos||[]).forEach(function(p){
-    if(p.numero&&p.numero.startsWith('PROJ-'+yr)){
-      var n=parseInt((p.numero||'').split('-')[2]||'0');
-      if(n>max) max=n;
+    if(!p.numero) return;
+    // Soporta PRY-XXX y PROJ-YYYY-XXXX (legacy)
+    var n=0;
+    if(p.numero.startsWith('PRY-')){
+      n=parseInt(p.numero.replace('PRY-',''))||0;
+    } else if(p.numero.startsWith('PROJ-')){
+      var parts=p.numero.split('-');
+      n=parseInt(parts[parts.length-1])||0;
     }
+    if(n>max) max=n;
   });
-  return 'PROJ-'+yr+'-'+String(max+1).padStart(4,'0');
+  return 'PRY-'+String(max+1).padStart(3,'0');
 }
 
 function proyEstadoPill(e){
@@ -945,7 +966,10 @@ function renderProyectos(){
   var estadosActivos=['Planificado','En curso','Pausado'];
   var estadosHist=['Finalizado','Cancelado'];
 
-  var todosList=(DB.proyectos||[]).filter(function(p){
+  // Filtro por operario si es operador vinculado
+  var baseProyectos=proyectosDelOperario();
+
+  var todosList=baseProyectos.filter(function(p){
     return !q||((p.numero||'')+(p.nombre||'')).toLowerCase().includes(q);
   }).sort(function(a,b){return (b.numero||'').localeCompare(a.numero||'');});
 
@@ -3637,14 +3661,22 @@ function toggleLogin(val){
 }
 
 function nuevoUsuario(){
+  var operariosActivos=(DB.operarios||[]).filter(function(o){return o.activo!==false;});
   openModal('Nuevo usuario',
     '<div class="fg2">'+
       '<div class="fg"><label>Usuario *</label><input id="nu-nombre" placeholder="nombre de usuario"></div>'+
       '<div class="fg"><label>Contraseña *</label><input id="nu-pass" type="password" placeholder="contraseña"></div>'+
       '<div class="fg"><label>Rol</label>'+
-        '<select id="nu-rol" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+        '<select id="nu-rol" onchange="document.getElementById(\'nu-op-wrap\').style.display=this.value===\'Operador\'?\'block\':\'none\'" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
           '<option>Operador</option><option>Administrador</option>'+
         '</select></div>'+
+      '<div class="fg" id="nu-op-wrap"><label>Operario vinculado</label>'+
+        '<select id="nu-operario" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option value="">-- Sin vincular --</option>'+
+          operariosActivos.map(function(o){return '<option value="'+o.id+'">'+o.nombre+(o.especialidad?' ('+o.especialidad+')':'')+'</option>';}).join('')+
+        '</select>'+
+        '<div style="font-size:10px;color:var(--text2);margin-top:3px">El operario vinculado solo verá los proyectos donde tiene tareas asignadas.</div>'+
+      '</div>'+
     '</div>',
     function(){
       var nombre=document.getElementById('nu-nombre').value.trim();
@@ -3653,7 +3685,8 @@ function nuevoUsuario(){
       if(!nombre||!pass){alert('Usuario y contraseña son obligatorios.');return false;}
       if((DB.config.usuarios||[]).find(function(u){return u.nombre===nombre;})){alert('Ya existe un usuario con ese nombre.');return false;}
       if(!DB.config.usuarios) DB.config.usuarios=[];
-      DB.config.usuarios.push({nombre:nombre,password:pass,rol:rol});
+      var opId=parseInt(document.getElementById('nu-operario')?document.getElementById('nu-operario').value:0)||null;
+      DB.config.usuarios.push({nombre:nombre,password:pass,rol:rol,operarioId:opId});
       save();renderConfig();return true;
     });
 }
@@ -3661,20 +3694,29 @@ function nuevoUsuario(){
 function editarUsuario(idx){
   var u=(DB.config.usuarios||[])[idx];
   if(!u) return;
+  var operariosActivos=(DB.operarios||[]).filter(function(o){return o.activo!==false;});
   openModal('Editar usuario -- '+u.nombre,
     '<div class="fg2">'+
       '<div class="fg"><label>Nueva contraseña</label><input id="eu-pass" type="password" placeholder="dejar vacio para no cambiar"></div>'+
       '<div class="fg"><label>Rol</label>'+
-        '<select id="eu-rol" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+        '<select id="eu-rol" onchange="document.getElementById(\'eu-op-wrap\').style.display=this.value===\'Operador\'?\'block\':\'none\'" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
           '<option'+(u.rol==='Operador'?' selected':'')+'>Operador</option>'+
           '<option'+(u.rol==='Administrador'?' selected':'')+'>Administrador</option>'+
         '</select></div>'+
+      '<div class="fg" id="eu-op-wrap" style="display:'+(u.rol==='Operador'?'block':'none')+'"><label>Operario vinculado</label>'+
+        '<select id="eu-operario" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
+          '<option value="">-- Sin vincular --</option>'+
+          operariosActivos.map(function(o){return '<option value="'+o.id+'"'+(u.operarioId===o.id?' selected':'')+'>'+o.nombre+(o.especialidad?' ('+o.especialidad+')':'')+'</option>';}).join('')+
+        '</select>'+
+        '<div style="font-size:10px;color:var(--text2);margin-top:3px">El operario vinculado solo verá los proyectos donde tiene tareas asignadas.</div>'+
+      '</div>'+
     '</div>',
     function(){
       var pass=document.getElementById('eu-pass').value;
       var rol=document.getElementById('eu-rol').value;
       if(pass) u.password=pass;
       u.rol=rol;
+      u.operarioId=parseInt(document.getElementById('eu-operario')?document.getElementById('eu-operario').value:0)||null;
       save();renderConfig();return true;
     });
 }
@@ -3879,6 +3921,39 @@ function exportarExcel(){
   tareas['!cols']=[{wch:10},{wch:30},{wch:40},{wch:12},{wch:12},{wch:12},{wch:8},{wch:8}];
   XLSX.utils.book_append_sheet(wb,tareas,'Tareas');
 
+  // HOJA 5: OPERARIOS con carga de trabajo
+  var opRows=[['Nombre','Especialidad','Telefono','Estado','Tareas pendientes','Tareas atrasadas','Total asignadas','MO asignada $']];
+  (DB.operarios||[]).forEach(function(o){
+    var tareasAsig=[];
+    (DB.proyectos||[]).forEach(function(p){
+      if(p.estado==='Cancelado'||p.estado==='Finalizado') return;
+      (p.tareas||[]).forEach(function(t){
+        if(t.operario===o.id) tareasAsig.push({proy:p,tarea:t,estado:tareaEstadoCached(t)});
+      });
+    });
+    var pend=tareasAsig.filter(function(x){return x.estado!=='OK'&&x.estado!=='Cancelado';});
+    var atr=pend.filter(function(x){return x.estado==='Atrasado';});
+    var mo=pend.reduce(function(a,x){return a+(parseFloat(x.tarea.costoMO)||0);},0);
+    opRows.push([o.nombre,o.especialidad||'',o.tel||'',o.activo===false?'Inactivo':'Activo',pend.length,atr.length,tareasAsig.length,Math.round(mo)]);
+  });
+  var wsOp=XLSX.utils.aoa_to_sheet(opRows);
+  wsOp['!cols']=[{wch:25},{wch:18},{wch:16},{wch:10},{wch:16},{wch:16},{wch:16},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,wsOp,'Operarios');
+
+  // HOJA 6: TAREAS POR OPERARIO
+  var opTareasRows=[['Operario','Proyecto','Tarea','Estado','Fecha venc.','Costo MO $','Peso %','Avance %']];
+  (DB.operarios||[]).forEach(function(o){
+    (DB.proyectos||[]).forEach(function(p){
+      (p.tareas||[]).forEach(function(t){
+        if(t.operario!==o.id) return;
+        opTareasRows.push([o.nombre,p.numero+' -- '+p.nombre,t.desc,tareaEstadoCached(t),t.fechaCumplimiento||'',parseFloat(t.costoMO)||0,parseFloat(t.peso)||0,parseFloat(t.avanceReal)||0]);
+      });
+    });
+  });
+  var wsOpT=XLSX.utils.aoa_to_sheet(opTareasRows);
+  wsOpT['!cols']=[{wch:20},{wch:35},{wch:40},{wch:22},{wch:12},{wch:12},{wch:8},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,wsOpT,'Tareas por operario');
+
   XLSX.writeFile(wb,'vss_logistica_'+today()+'.xlsx');
 }
 function exportarADrive(){
@@ -3926,16 +4001,42 @@ function renderDashboard(){
   if(!el) return;
   var hoy = today();
 
+  // Banner operario vinculado
+  var opActual=operarioDelUsuario();
+  var bannerOp='';
+  if(opActual){
+    var misProys=proyectosDelOperario();
+    var misTareas=[];
+    misProys.forEach(function(p){
+      (p.tareas||[]).forEach(function(t){
+        if(t.operario===opActual.id&&tareaEstadoCached(t)!=='OK'&&tareaEstadoCached(t)!=='Cancelado')
+          misTareas.push({proy:p,tarea:t,estado:tareaEstadoCached(t)});
+      });
+    });
+    var atrasadas=misTareas.filter(function(x){return x.estado==='Atrasado';}).length;
+    bannerOp='<div style="background:#0a1a2a;border:1px solid #1565C0;border-radius:var(--r);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff">'+opActual.nombre[0].toUpperCase()+'</div>'+
+        '<div>'+
+          '<div style="font-weight:700;font-size:12px">'+opActual.nombre+(opActual.especialidad?' &middot; '+opActual.especialidad:'')+'</div>'+
+          '<div style="font-size:11px;color:var(--text2);margin-top:1px">'+misTareas.length+' tarea'+(misTareas.length!==1?'s':'')+' pendiente'+(misTareas.length!==1?'s':'')+(atrasadas>0?' &middot; <span style="color:var(--red);font-weight:700">'+atrasadas+' atrasada'+(atrasadas>1?'s':'')+'</span>':'')+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<button class="btn btn-sm" onclick="goTo(\'proyectos\')">Mis proyectos</button>'+
+    '</div>';
+  }
+
   var tareasVencidas = [];
-  (DB.proyectos||[]).filter(function(p){return p.estado==='En curso'||p.estado==='Planificado';}).forEach(function(p){
+  (proyectosDelOperario()).filter(function(p){return p.estado==='En curso'||p.estado==='Planificado';}).forEach(function(p){
     (p.tareas||[]).forEach(function(t,ti){
       if(tareaEstadoCached(t)==='Atrasado') tareasVencidas.push({proj:p,tarea:t,idx:ti});
     });
   });
 
-  var proyActivos = (DB.proyectos||[]).filter(function(p){return p.estado==='En curso';});
-  var proyPlanif  = (DB.proyectos||[]).filter(function(p){return p.estado==='Planificado';});
-  var proyPausados = (DB.proyectos||[]).filter(function(p){return p.estado==='Pausado';});
+  var _baseProys=proyectosDelOperario();
+  var proyActivos = _baseProys.filter(function(p){return p.estado==='En curso';});
+  var proyPlanif  = _baseProys.filter(function(p){return p.estado==='Planificado';});
+  var proyPausados = _baseProys.filter(function(p){return p.estado==='Pausado';});
   var stockCritico = DB.componentes.filter(function(c){
     return stockActual(c.id)<=(parseFloat(c.min)||0)&&(parseFloat(c.min)||0)>0;
   });
@@ -3951,7 +4052,7 @@ function renderDashboard(){
     return p.estado==='En curso'&&(p.materiales||[]).some(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
   });
 
-  var h = '';
+  var h = bannerOp;
 
   if(tareasVencidas.length){
     h += '<div style="background:#7f0000;border-radius:var(--r);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">'+
