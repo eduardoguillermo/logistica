@@ -263,7 +263,7 @@ function goTo(p){
   if(p==='catalogo')    renderCatalogo();
   if(p==='movimientos') renderMovimientos();
   if(p==='dashboard')   renderDashboard();
-  if(p==='proyectos')   renderProyectos();
+  if(p==='proyectos'){cerrarFichaProyecto();renderProyectos();}
   if(p==='ordenes')     renderOrdenes();
   if(p==='proveedores') renderProveedores();
   if(p==='reportes')    cerrarReporte();
