@@ -258,6 +258,7 @@ function goTo(p){
   var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',dashproy:'Dashboard de proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',operarios:'Operarios',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
   document.getElementById('ptitle').textContent = titles[p]||p;
   var pa = document.getElementById('pacts'); pa.innerHTML = '';
+  if(p!=='stock') _stockSoloCritico=false;
   if(p==='stock')       renderStock();
   if(p==='catalogo')    renderCatalogo();
   if(p==='movimientos') renderMovimientos();
@@ -297,6 +298,7 @@ function cerrarModal(){ document.getElementById('mbox').innerHTML = ''; }
 // =======================================================
 var stockSoloCritico = false;
 var _stockSort = {col:'desc', dir:1};
+var _stockSoloCritico = false;
 
 
 function cajonBadge(ubicacion, nroCajon){
@@ -351,7 +353,16 @@ function renderStock(){
            (!farea||c.area===farea||c.area==='Ambas') &&
            (!qs||(c.codigo+c.desc+(c.ubicacion||'')+(c.proveedor||'')).toLowerCase().includes(qs));
   });
-  if(stockSoloCritico) list = list.filter(function(c){return stockActual(c.id)<=(parseFloat(c.min)||0);});
+  if(_stockSoloCritico) list = list.filter(function(c){var qty=stockActual(c.id);return qty<=(parseFloat(c.min)||0);});
+
+  // Toggle filtro críticos
+  var btnCritico=document.getElementById('btn-solo-critico');
+  if(btnCritico){
+    btnCritico.textContent=_stockSoloCritico?'🔴 Solo críticos ✕':'🔴 Solo críticos';
+    btnCritico.style.background=_stockSoloCritico?'var(--primary)':'var(--surface2)';
+    btnCritico.style.color=_stockSoloCritico?'#fff':'var(--text2)';
+    btnCritico.style.borderColor=_stockSoloCritico?'var(--primary)':'var(--border)';
+  }
 
   list.sort(function(a,b){
     var va='',vb='';
@@ -4570,6 +4581,7 @@ if('serviceWorker' in navigator){
 // =======================================================
 function irAStockCritico(){
   _stockSort={col:'cant',dir:1};
+  _stockSoloCritico=true;
   goTo('stock');
 }
 function renderDashboard(){
