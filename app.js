@@ -4802,14 +4802,16 @@ function renderDashboard(){
 
   // Panel OC pendientes — colapsable
   var todasOCPend=(DB.ordenes||[]).filter(function(o){return o.estado==='Pendiente'||o.estado==='Enviada'||o.estado==='Pendiente de compra'||o.estado==='Pendiente de entrega';});
-  if(todasOCPend.length){
-    h += '<div class="card" style="margin-top:14px;border-color:#1565C0">'+
-      '<div class="ch" style="border-color:#1565C0;cursor:pointer" onclick="togglePanel(\'dash-oc-pend\')">'+
-        '<div class="ct" style="color:#4fc3f7">🛒 OC pendientes ('+todasOCPend.length+')</div>'+
-        '<span id="dash-oc-pend-ico" style="color:#4fc3f7;font-size:14px">▼</span>'+
-      '</div>'+
-      '<div id="dash-oc-pend" style="display:none"><div class="card-body">'+
-      '<table style="width:100%;border-collapse:collapse">'+
+  h += '<div class="card" style="margin-top:14px;border-color:#1565C0">'+
+    '<div class="ch" style="border-color:#1565C0;cursor:pointer" onclick="togglePanel(\'dash-oc-pend\')">'+
+      '<div class="ct" style="color:#4fc3f7">🛒 OC pendientes ('+todasOCPend.length+')</div>'+
+      '<span id="dash-oc-pend-ico" style="color:#4fc3f7;font-size:14px">▼</span>'+
+    '</div>'+
+    '<div id="dash-oc-pend" style="display:none"><div class="card-body">';
+  if(!todasOCPend.length){
+    h += '<div class="empty">Sin órdenes de compra pendientes.</div>';
+  } else {
+  h += '<table style="width:100%;border-collapse:collapse">'+
         '<thead><tr style="background:var(--surface2)">'+
           '<th style="padding:5px 10px;font-size:10px">N°</th>'+
           '<th style="padding:5px 10px;font-size:10px">Proveedor</th>'+
@@ -4840,9 +4842,9 @@ function renderDashboard(){
             '</td>'+
           '</tr>';
         }).join('')+
-        '</tbody></table>'+
-      '</div></div></div>';
+        '</tbody></table>';
   }
+  h += '</div></div></div>';
 
   // Panel entregas parciales — colapsable
   if(entregasParciales.length){
