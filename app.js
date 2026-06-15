@@ -57,6 +57,15 @@ DB.componentes.forEach(function(c){ if(!c.area) c.area='Fabrica'; });
 
 // Stock cache
 var _stockCache = null;
+var _compMap = null;
+
+function _buildCompMap(){
+  _compMap = {};
+  (DB.componentes||[]).forEach(function(c){ _compMap[c.id] = c; });
+}
+function compById(id){ if(!_compMap) _buildCompMap(); return _compMap[id]||{desc:'?',unidad:'',costo:0,codigo:''}; }
+function invalidarCompMap(){ _compMap = null; }
+
 function _buildStockCache(){
   _stockCache = {};
   var todos=(DB.movimientosArchivados||[]).concat(DB.movimientos);
@@ -81,7 +90,18 @@ function stockReservado(cid){
   return total;
 }
 function invalidarStockCache(){ _stockCache = null; }
-function save(){ invalidarStockCache(); localStorage.setItem(SKEY, JSON.stringify(DB)); }
+var _tareaEstadoCache = null;
+function invalidarTareaEstadoCache(){ _tareaEstadoCache = null; }
+function tareaEstadoCached(t){
+  if(!_tareaEstadoCache) _tareaEstadoCache = {};
+  // clave: proyId+idx no disponible, usar desc+fecha como clave proxy
+  var key = (t.estadoManual||'')+'|'+(t.fechaCumplimiento||'');
+  if(_tareaEstadoCache[key]!==undefined) return _tareaEstadoCache[key];
+  var v = tareaEstado(t);
+  _tareaEstadoCache[key] = v;
+  return v;
+}
+function save(){ invalidarStockCache(); invalidarCompMap(); invalidarTareaEstadoCache(); localStorage.setItem(SKEY, JSON.stringify(DB)); }
 
 // =======================================================
 // HELPERS
@@ -833,7 +853,7 @@ function borrarMovimiento(id){
 function editarMovimiento(id){
   var m=DB.movimientos.find(function(x){return x.id===id;});
   if(!m) return;
-  var comp=DB.componentes.find(function(c){return c.id===m.cid;})||{desc:'?'};
+  var comp=(compById(m.cid)||{desc:'?'});
   var tc=(DB.config&&DB.config.tipoCambio)||1;
   openModal('Editar movimiento -- '+comp.desc,
     '<div class="fg2">'+
@@ -867,7 +887,7 @@ function editarMovimiento(id){
 // =======================================================
 var PROJ_ESTADOS = ['Planificado','En curso','Pausado','Finalizado','Cancelado'];
 
-function tareaEstado(t){
+function tareaEstadoCached(t){
   if(t.estadoManual==='OK') return 'OK';
   if(t.estadoManual==='Cancelado') return 'Cancelado';
   if(t.estadoManual==='Pendiente confirmacion') return 'Pendiente confirmacion';
@@ -939,13 +959,13 @@ function renderProyectos(){
   var fin=(DB.proyectos||[]).filter(function(p){return p.estado==='Finalizado';}).length;
   var valorActivo=(DB.proyectos||[]).filter(function(p){return p.estado!=='Cancelado'&&p.estado!=='Finalizado';}).reduce(function(a,p){
     return a+(p.materiales||[]).reduce(function(b,m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      var comp=(compById(m.compId)||{});
       return b+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
     },0);
   },0);
   var valorHistorico=(DB.proyectos||[]).filter(function(p){return p.estado!=='Cancelado';}).reduce(function(a,p){
     return a+(p.materiales||[]).reduce(function(b,m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      var comp=(compById(m.compId)||{});
       return b+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
     },0);
   },0);
@@ -980,7 +1000,7 @@ function renderProyectos(){
   function filaProyecto(p, hist){
     var nMat=(p.materiales||[]).length;
     var valor=(p.materiales||[]).reduce(function(a,m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      var comp=(compById(m.compId)||{});
       return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
     },0);
     var sobrantes=(p.materiales||[]).filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);}).length;
@@ -1080,13 +1100,13 @@ function abrirProyecto(id){
 
   // Valor total
   var valor=(p.materiales||[]).reduce(function(a,m){
-    var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+    var comp=(compById(m.compId)||{});
     return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
   },0);
 
   // Aviso cierre pendiente: todas las tareas OK y proyecto en curso
   var tareasTotales=(p.tareas||[]).length;
-  var tareasOKCount=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
+  var tareasOKCount=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).length;
   var todasOK=tareasTotales>0&&tareasOKCount===tareasTotales&&p.estado==='En curso';
 
   // Header
@@ -1260,7 +1280,7 @@ function abrirProyecto(id){
           (!esFin?'<th style="padding:5px 10px;font-size:10px"></th>':'')+
         '</tr></thead><tbody>'+
         (p.tareas||[]).map(function(t,ti){
-          var estado=tareaEstado(t);
+          var estado=tareaEstadoCached(t);
           var vencColor=estado==='Atrasado'?'var(--red)':estado==='OK'?'var(--green)':'var(--text2)';
           var avR=parseFloat(t.avanceReal)||0;
           var peso=parseFloat(t.peso)||0;
@@ -1309,7 +1329,7 @@ function abrirProyecto(id){
         (esFin?'':'<th style="padding:5px 10px;font-size:10px"></th>')+
       '</tr></thead><tbody>'+
       (p.materiales||[]).map(function(m,mi){
-        var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{codigo:'?',desc:'?'};
+        var comp=(compById(m.compId)||{codigo:'?',desc:'?'});
         var val=(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
         var sobrante=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
         return '<tr style="border-bottom:1px solid var(--border)">'+
@@ -1436,7 +1456,7 @@ function editarTareaProyecto(projId, idx){
   var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
   if(!p||!p.tareas[idx]) return;
   var t=p.tareas[idx];
-  var estadoActual=tareaEstado(t);
+  var estadoActual=tareaEstadoCached(t);
   var pesoUsado=(p.tareas||[]).reduce(function(a,tt,i){return i===idx?a:a+(parseFloat(tt.peso)||0);},0);
   var pesoDisp=Math.max(0,100-pesoUsado);
   var operariosActivosE=(DB.operarios||[]).filter(function(o){return o.activo!==false;});
@@ -1803,7 +1823,7 @@ function quitarMaterialProyecto(projId, idx){
   var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
   if(!p||!p.materiales[idx]) return;
   var m=p.materiales[idx];
-  var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?'};
+  var comp=(compById(m.compId)||{desc:'?'});
   if(!confirm('Quitar '+comp.desc+' x'+m.cant+' del proyecto?')) return;
   if(p.estado==='Planificado' && m.reservado){
     // Devolver al stock lo que habia sido reservado (lo que no tenia OC pendiente)
@@ -1841,7 +1861,7 @@ function confirmarPlanificacion(id){
   p.materiales.forEach(function(m){
     var faltante=parseFloat(m.cantPendienteOC)||0;
     if(faltante<=0) return;
-    var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+    var comp=(compById(m.compId)||{});
     var prov=comp.proveedor||'Sin proveedor';
     if(!faltantesPorProv[prov]) faltantesPorProv[prov]=[];
     faltantesPorProv[prov].push({cid:m.compId,cant:parseFloat(m.cant)||0}); // OC por cantidad total reservada
@@ -1907,9 +1927,9 @@ function iniciarCierreProyecto(id){
   // CHECKLIST DE CIERRE
   var checks=[];
   var tareasTotal=(p.tareas||[]).length;
-  var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
-  var tareasPendConf=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Pendiente confirmacion';}).length;
-  var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+  var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).length;
+  var tareasPendConf=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='Pendiente confirmacion';}).length;
+  var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='Atrasado';}).length;
   var tieneOCPendiente=(DB.ordenes||[]).some(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Recibida'&&o.estado!=='Cancelada';});
   var tieneDocumentacion=(p.notas||[]).length>0||(p.onedriveLinks||[]).length>0||p.onedrive;
   var tienePresupuesto=parseFloat(p.presupuesto)||0;
@@ -1951,7 +1971,7 @@ function iniciarCierreProyecto(id){
   var htmlSobrantes='';
   if(sobrantes.length){
     var compOpts=sobrantes.map(function(m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
+      var comp=(compById(m.compId)||{desc:'?',unidad:''});
       var enProyecto=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
       return '<tr style="border-bottom:1px solid var(--border)">'+
         '<td style="padding:6px 10px;font-size:12px">'+comp.desc+'</td>'+
@@ -2070,7 +2090,7 @@ function cambiarEstadoProyecto(id, nuevoEstado){
     var tareasReprog=0;
     if(diasPausa>0){
       (p.tareas||[]).forEach(function(t){
-        if(tareaEstado(t)==='OK') return;
+        if(tareaEstadoCached(t)==='OK') return;
         if(!t.fechaCumplimiento) return;
         var td=new Date(t.fechaCumplimiento);
         td.setDate(td.getDate()+diasPausa);
@@ -2177,11 +2197,11 @@ function reporteProyectos(){
 
     // Calculos generales
     var valor=(p.materiales||[]).reduce(function(a,m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      var comp=(compById(m.compId)||{});
       return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
     },0);
     var valorPendOC=(p.materiales||[]).reduce(function(a,m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+      var comp=(compById(m.compId)||{});
       return a+(parseFloat(m.cantPendienteOC)||0)*(parseFloat(comp.costo)||0);
     },0);
 
@@ -2201,8 +2221,8 @@ function reporteProyectos(){
     },0)):null;
 
     // Tareas stats
-    var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
-    var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+    var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).length;
+    var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='Atrasado';}).length;
     var tareasTot=(p.tareas||[]).length;
 
     // Reprogramaciones
@@ -2261,11 +2281,11 @@ function reporteProyectos(){
         var estimTotal=estimMat+estimMO;
         // Erogado real (en curso/pausado/finalizado): materiales entregados + MO de tareas OK
         var erogMat=(p.materiales||[]).reduce(function(a,m){
-          var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};
+          var comp=(compById(m.compId)||{});
           var entregado=m.reservado?0:(parseFloat(m.entregado)||parseFloat(m.cant)||0);
           return a+entregado*(parseFloat(comp.costo)||0);
         },0);
-        var erogMO=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+        var erogMO=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
         var erogTotal=erogMat+erogMO;
         // Segun estado usamos estimado o erogado para la comparacion
         var compMat=esPlanif?estimMat:erogMat;
@@ -2394,7 +2414,7 @@ function reporteProyectos(){
             '<th style="padding:3px 8px;font-size:10px;text-align:right">Valor $</th>'+
           '</tr></thead><tbody>'+
           (p.materiales||[]).map(function(m){
-            var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
+            var comp=(compById(m.compId)||{desc:'?',unidad:''});
             var val=(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
             var estadoMat=m.reservado?'<span style="color:#ce93d8;font-size:10px">Reservado</span>':
               (parseFloat(m.cantPendienteOC)||0)>0?'<span style="color:var(--amber);font-size:10px">Parcial (OC)</span>':
@@ -2553,7 +2573,7 @@ function cambiarEstadoOrden(id){
     // Al recibir: mostrar modal de confirmacion con detalle
     var pRec=o.proyId?(DB.proyectos||[]).find(function(x){return x.id===o.proyId;}):null;
     var detalleItems=o.items.map(function(item){
-      var comp=DB.componentes.find(function(x){return x.id===item.cid;})||{desc:'?',unidad:''};
+      var comp=(compById(item.cid)||{desc:'?',unidad:''});
       var mat=pRec?(pRec.materiales||[]).find(function(m){return m.compId===item.cid;}):null;
       var pendiente=mat?parseFloat(mat.cantPendienteOC)||0:0;
       var aAsignar=Math.min(pendiente,item.cant);
@@ -2627,7 +2647,7 @@ function pdfOrden(id){
   var empresa=(DB.config&&DB.config.empresa)||'Viking Security Systems';
   var rows='';
   o.items.forEach(function(item){
-    var c=DB.componentes.find(function(x){return x.id===item.cid;})||{codigo:'?',desc:'?',unidad:'u',costo:0};
+    var c=(compById(item.cid)||{codigo:'?',desc:'?',unidad:'u',costo:0});
     var sub=(parseFloat(c.costo)||0)*item.cant;
     rows+='<tr><td>'+c.codigo+'</td><td>'+c.desc+'</td><td style="text-align:center">'+item.cant+' '+(c.unidad||'')+'</td><td style="text-align:right">$'+Math.round(c.costo||0).toLocaleString('es-AR')+'</td><td style="text-align:right">$'+Math.round(sub).toLocaleString('es-AR')+'</td></tr>';
   });
@@ -2664,7 +2684,7 @@ function renderOperarios(){
       if(p.estado==='Cancelado'||p.estado==='Finalizado') return;
       (p.tareas||[]).forEach(function(t){
         if(opId===null ? !t.operario : t.operario===opId){
-          res.push({proy:p,tarea:t,estado:tareaEstado(t)});
+          res.push({proy:p,tarea:t,estado:tareaEstadoCached(t)});
         }
       });
     });
@@ -3306,7 +3326,7 @@ function reporteUsoRecursos(){
     // MATERIALES
     var totalMatEstim=0, totalMatReal=0, totalMatDevuelto=0;
     var rowsMat=(p.materiales||[]).map(function(m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:'',costo:0};
+      var comp=(compById(m.compId)||{desc:'?',unidad:'',costo:0});
       var costo=parseFloat(comp.costo)||0;
       var cantEstim=parseFloat(m.cant)||0;
       var cantReal=esFin?(parseFloat(m.entregado)||cantEstim):( parseFloat(m.entregado)||0);
@@ -3335,12 +3355,12 @@ function reporteUsoRecursos(){
     var moEstim=0, moReal=0;
     var rowsMO=(p.tareas||[]).map(function(t){
       var mo=parseFloat(t.costoMO)||0;
-      var esOK=tareaEstado(t)==='OK';
+      var esOK=tareaEstadoCached(t)==='OK';
       moEstim+=mo;
       if(esOK) moReal+=mo;
       return '<tr style="border-bottom:1px solid var(--border)">'+
         '<td style="padding:4px 8px;font-size:11px;'+(esOK?'':'color:var(--text2)')+'">'+t.desc+'</td>'+
-        '<td style="padding:4px 8px;text-align:center;font-size:11px">'+tareaPill(tareaEstado(t))+'</td>'+
+        '<td style="padding:4px 8px;text-align:center;font-size:11px">'+tareaPill(tareaEstadoCached(t))+'</td>'+
         '<td style="padding:4px 8px;text-align:center;font-size:11px;color:var(--text2)">'+(t.fechaCumplimiento||'--')+'</td>'+
         '<td style="padding:4px 8px;text-align:right;font-size:11px">$'+Math.round(mo).toLocaleString('es-AR')+'</td>'+
         '<td style="padding:4px 8px;text-align:right;font-size:11px;font-weight:700;color:'+(esOK?'var(--green)':'var(--text3)')+'">'+
@@ -3769,17 +3789,17 @@ function exportarExcel(){
   var proyRows=[['N°','Nombre','Estado','Prioridad','Fecha inicio','Fecha est. fin','Fecha fin real','Presupuesto $','Costo materiales $','MO planif. $','MO ejecutada $','Total erogado $','Dif. presupuesto $','% Avance MO','Tareas total','Tareas OK','Tareas atrasadas']];
   (DB.proyectos||[]).forEach(function(p){
     var matCosto=(p.materiales||[]).reduce(function(a,m){
-      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{costo:0};
+      var comp=(compById(m.compId)||{costo:0});
       return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
     },0);
     var moEstim=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
-    var moReal=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+    var moReal=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
     var totalErog=matCosto+moReal;
     var presup=parseFloat(p.presupuesto)||0;
     var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
     var avMO=pesoTotal>0?Math.round((p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;},0)):0;
-    var tOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
-    var tAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+    var tOK=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).length;
+    var tAt=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='Atrasado';}).length;
     proyRows.push([
       p.numero,p.nombre,p.estado,p.prioridad||'',
       p.fechaInicio||'',p.fechaEstFin||'',p.fechaFinReal||'',
@@ -3797,7 +3817,7 @@ function exportarExcel(){
   (DB.proyectos||[]).forEach(function(p){
     (p.tareas||[]).forEach(function(t){
       tareasRows.push([
-        p.numero,p.nombre,t.desc,tareaEstado(t),
+        p.numero,p.nombre,t.desc,tareaEstadoCached(t),
         t.fechaCumplimiento||'',parseFloat(t.costoMO)||0,
         parseFloat(t.peso)||0,parseFloat(t.avanceReal)||0
       ]);
@@ -3857,7 +3877,7 @@ function renderDashboard(){
   var tareasVencidas = [];
   (DB.proyectos||[]).filter(function(p){return p.estado==='En curso'||p.estado==='Planificado';}).forEach(function(p){
     (p.tareas||[]).forEach(function(t,ti){
-      if(tareaEstado(t)==='Atrasado') tareasVencidas.push({proj:p,tarea:t,idx:ti});
+      if(tareaEstadoCached(t)==='Atrasado') tareasVencidas.push({proj:p,tarea:t,idx:ti});
     });
   });
 
@@ -3915,8 +3935,8 @@ function renderDashboard(){
 
   function filaProyecto(p, esPausado){
     var tareasP=(p.tareas||[]);
-    var venc=tareasP.filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
-    var ok=tareasP.filter(function(t){return tareaEstado(t)==='OK';}).length;
+    var venc=tareasP.filter(function(t){return tareaEstadoCached(t)==='Atrasado';}).length;
+    var ok=tareasP.filter(function(t){return tareaEstadoCached(t)==='OK';}).length;
     var pct=p.fechaInicio&&p.fechaEstFin?Math.min(100,Math.max(0,Math.round((new Date(hoy)-new Date(p.fechaInicio))/(new Date(p.fechaEstFin)-new Date(p.fechaInicio))*100))):0;
     var tieneEntregaParcial=(p.materiales||[]).some(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
     var color=esPausado?'var(--text2)':'var(--primary)';
@@ -3994,7 +4014,7 @@ function renderDashboard(){
     depositosTransitorios.forEach(function(p,idx){
       var itemsReservados=(p.materiales||[]).filter(function(m){return m.reservado;});
       var valorReserva=itemsReservados.reduce(function(a,m){
-        var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{costo:0};
+        var comp=(compById(m.compId)||{costo:0});
         return a+(parseFloat(m.cant)||0)*(parseFloat(comp.costo)||0);
       },0);
       var tieneOC=DB.ordenes.some(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada'&&o.estado!=='Recibida';});
@@ -4048,7 +4068,7 @@ function renderDashboard(){
             '<th style="font-size:10px;color:#ef5350;text-align:center;padding:3px 4px;border-bottom:1px solid var(--border)">Pendiente</th>'+
           '</tr></thead><tbody>'+
           matPendientes.map(function(m){
-            var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
+            var comp=(compById(m.compId)||{desc:'?',unidad:''});
             var entregado=parseFloat(m.entregado)||0;
             var pendiente=parseFloat(m.cantPendienteOC)||0;
             return '<tr style="border-bottom:1px solid var(--border)">'+
@@ -4106,12 +4126,12 @@ function renderDashboard(){
       var semColor='var(--green)',semLabel='Adelantado',semBg='#0a2a0a';
       if(avFisico===null||avTiempo===null){semColor='var(--text2)';semLabel='Sin datos';semBg='var(--surface2)';}
       else{var diff=avFisico-avTiempo;if(diff<-10){semColor='var(--red)';semLabel='Atrasado';semBg='rgba(239,83,80,0.06)';}else if(diff<5){semColor='var(--amber)';semLabel='En línea';semBg='rgba(255,167,38,0.06)';}}
-      var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
-      var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+      var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).length;
+      var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='Atrasado';}).length;
       var tareasTot=(p.tareas||[]).length;
       var presup=parseFloat(p.presupuesto)||0;
-      var erogMat=(p.materiales||[]).reduce(function(a,m){var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{};var ent=m.reservado?0:(parseFloat(m.entregado)||parseFloat(m.cant)||0);return a+ent*(parseFloat(comp.costo)||0);},0);
-      var erogMO=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+      var erogMat=(p.materiales||[]).reduce(function(a,m){var comp=(compById(m.compId)||{});var ent=m.reservado?0:(parseFloat(m.entregado)||parseFloat(m.cant)||0);return a+ent*(parseFloat(comp.costo)||0);},0);
+      var erogMO=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
       var erogTotal=erogMat+erogMO;
       var pctPresup=presup>0?Math.min(200,Math.round(erogTotal/presup*100)):null;
       var superaPresup=presup>0&&erogTotal>presup;
@@ -4310,7 +4330,7 @@ function alertaTareasProximas(){
     if(p.estado==='Cancelado'||p.estado==='Finalizado') return;
     (p.tareas||[]).forEach(function(t){
       if(!t.fechaCumplimiento) return;
-      if(tareaEstado(t)==='OK'||tareaEstado(t)==='Cancelado') return;
+      if(tareaEstadoCached(t)==='OK'||tareaEstadoCached(t)==='Cancelado') return;
       var dh = diasHabilesEntre(hoy, t.fechaCumplimiento);
       var vencida = t.fechaCumplimiento < hoy;
       if(vencida || dh <= MARGEN){
