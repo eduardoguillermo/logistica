@@ -296,7 +296,6 @@ function cerrarModal(){ document.getElementById('mbox').innerHTML = ''; }
 // =======================================================
 // STOCK
 // =======================================================
-var stockSoloCritico = false;
 var _stockSort = {col:'desc', dir:1};
 var _stockSoloCritico = false;
 
@@ -320,10 +319,13 @@ function cajonBadge(ubicacion, nroCajon){
 }
 
 function toggleStockCritico(){
-  stockSoloCritico = !stockSoloCritico;
+  _stockSoloCritico = !_stockSoloCritico;
   var btn = document.getElementById('btn-critico');
-  btn.style.background = stockSoloCritico ? 'var(--amber)' : '';
-  btn.style.color = stockSoloCritico ? '#000' : '';
+  if(btn){
+    btn.style.background = _stockSoloCritico ? 'var(--primary)' : '';
+    btn.style.color = _stockSoloCritico ? '#fff' : '';
+    btn.style.borderColor = _stockSoloCritico ? 'var(--primary)' : '';
+  }
   renderStock();
 }
 
@@ -355,14 +357,9 @@ function renderStock(){
   });
   if(_stockSoloCritico) list = list.filter(function(c){var qty=stockActual(c.id);return qty<=(parseFloat(c.min)||0);});
 
-  // Toggle filtro críticos
-  var btnCritico=document.getElementById('btn-solo-critico');
-  if(btnCritico){
-    btnCritico.textContent=_stockSoloCritico?'🔴 Solo críticos ✕':'🔴 Solo críticos';
-    btnCritico.style.background=_stockSoloCritico?'var(--primary)':'var(--surface2)';
-    btnCritico.style.color=_stockSoloCritico?'#fff':'var(--text2)';
-    btnCritico.style.borderColor=_stockSoloCritico?'var(--primary)':'var(--border)';
-  }
+  // Sincronizar boton critico
+  var btnCritico=document.getElementById('btn-critico');
+  if(btnCritico){btnCritico.style.background=_stockSoloCritico?'var(--primary)':'';btnCritico.style.color=_stockSoloCritico?'#fff':'';}
 
   list.sort(function(a,b){
     var va='',vb='';
