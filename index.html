@@ -244,6 +244,7 @@ function iniciarSplash(){
       <div id="stock-stats" class="stats"></div>
       <div class="sbar">
         <input type="text" id="q-stock" placeholder="🔍 Buscar..." oninput="renderStock()">
+        <button id="btn-solo-critico" class="btn" onclick="_stockSoloCritico=!_stockSoloCritico;renderStock()" style="flex-shrink:0">🔴 Solo críticos</button>
         <select id="stock-cat-filter" onchange="renderStock()"></select>
         <select id="stock-area-filter" onchange="renderStock()">
           <option value="">Todas las áreas</option>
