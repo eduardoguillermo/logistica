@@ -4581,6 +4581,15 @@ function irAStockCritico(){
   _stockSoloCritico=true;
   goTo('stock');
 }
+
+function togglePanel(id){
+  var el=document.getElementById(id);
+  var ico=document.getElementById(id+'-ico');
+  if(!el) return;
+  var abierto=el.style.display!=='none';
+  el.style.display=abierto?'none':'block';
+  if(ico) ico.textContent=abierto?'▼':'▲';
+}
 function renderDashboard(){
   var el = document.getElementById('dashboard-body');
   if(!el) return;
@@ -4658,9 +4667,9 @@ function renderDashboard(){
     (proyPausados.length?'<div class="stat" style="cursor:pointer;border-color:#555" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#aaa">'+proyPausados.length+'</div><div class="stat-l">Pausados</div></div>':'')+
     (tareasVencidas.length?'<div class="stat" style="cursor:pointer;border-color:#7f0000" onclick="goTo(\'proyectos\')"><div class="stat-n red">'+tareasVencidas.length+'</div><div class="stat-l">Tareas vencidas</div></div>':'')+
     '<div class="stat" style="cursor:pointer" onclick="irAStockCritico()"><div class="stat-n '+(stockCritico.length>0?'red':'green')+'">'+stockCritico.length+'</div><div class="stat-l">Stock critico</div></div>'+
-    '<div class="stat" style="cursor:pointer" onclick="goTo(\'ordenes\')"><div class="stat-n">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>'+
-    (depositosTransitorios.length?'<div class="stat" style="cursor:pointer;border-color:#6a1b9a" onclick="document.getElementById(\'panel-dep-transitorios\')&&document.getElementById(\'panel-dep-transitorios\').scrollIntoView({behavior:\'smooth\'})" ><div class="stat-n" style="color:#ce93d8">'+depositosTransitorios.length+'</div><div class="stat-l">Dep. transitorios</div></div>':'')+
-    (entregasParciales.length?'<div class="stat" style="cursor:pointer;border-color:#E65100" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#ffa726">'+entregasParciales.length+'</div><div class="stat-l">Entregas parciales</div></div>':'')+
+    (todasOCPend&&todasOCPend.length?'<div class="stat" style="cursor:pointer;border-color:#1565C0" onclick="togglePanel(\'dash-oc-pend\')&&window.scrollTo(0,0)"><div class="stat-n" style="color:#4fc3f7">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>':'<div class="stat"><div class="stat-n">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>')+
+    (depositosTransitorios.length?'<div class="stat" style="cursor:pointer;border-color:#6a1b9a" onclick="togglePanel(\'dash-dep-trans\')" ><div class="stat-n" style="color:#ce93d8">'+depositosTransitorios.length+'</div><div class="stat-l">Dep. transitorios</div></div>':'')+
+    (entregasParciales.length?'<div class="stat" style="cursor:pointer;border-color:#E65100" onclick="togglePanel(\'dash-ent-parc\')"><div class="stat-n" style="color:#ffa726">'+entregasParciales.length+'</div><div class="stat-l">Entregas parciales</div></div>':'')+
     '<div class="stat"><div class="stat-n">'+DB.componentes.length+'</div><div class="stat-l">Componentes</div></div>'+
   '</div>';
 
@@ -4745,10 +4754,14 @@ function renderDashboard(){
   h += '</div>';
 
   // Panel depositos transitorios
+  // Panel depósitos transitorios — colapsable
   if(depositosTransitorios.length){
     h += '<div class="card" style="margin-top:14px;border-color:#6a1b9a">'+
-      '<div class="ch" style="border-color:#6a1b9a"><div class="ct" style="color:#ce93d8">Depositos transitorios</div></div>'+
-      '<div class="card-body">';
+      '<div class="ch" style="border-color:#6a1b9a;cursor:pointer" onclick="togglePanel(\'dash-dep-trans\')">'+
+        '<div class="ct" style="color:#ce93d8">📦 Depósitos transitorios ('+depositosTransitorios.length+')</div>'+
+        '<span id="dash-dep-trans-ico" style="color:#ce93d8;font-size:14px">▼</span>'+
+      '</div>'+
+      '<div id="dash-dep-trans" style="display:none"><div class="card-body">';
     depositosTransitorios.forEach(function(p,idx){
       var itemsReservados=(p.materiales||[]).filter(function(m){return m.reservado;});
       var valorReserva=itemsReservados.reduce(function(a,m){
@@ -4759,7 +4772,7 @@ function renderDashboard(){
       var ocVinculadas=DB.ordenes.filter(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada'&&o.estado!=='Recibida';});
       h += '<div style="'+(idx>0?'margin-top:12px;padding-top:12px;border-top:1px solid var(--border)':'')+'">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-          '<span style="font-size:12px;font-weight:700;color:#ce93d8;cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.numero+' -- '+p.nombre+'</span>'+
+          '<span style="font-size:12px;font-weight:700;color:#ce93d8;cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.numero+' — '+p.nombre+'</span>'+
           (tieneOC?'<span style="background:#2a0a3a;color:#ce93d8;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700">OC pendiente</span>':'<span style="background:#0a2a0a;color:#66bb6a;padding:2px 8px;border-radius:8px;font-size:10px">stock OK</span>')+
         '</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">'+
@@ -4784,20 +4797,67 @@ function renderDashboard(){
           '</div>':'')+
       '</div>';
     });
-    h += '</div></div>';
+    h += '</div></div></div>';
   }
 
-  // Panel entregas parciales
+  // Panel OC pendientes — colapsable
+  var todasOCPend=(DB.ordenes||[]).filter(function(o){return o.estado==='Pendiente'||o.estado==='Enviada'||o.estado==='Pendiente de compra'||o.estado==='Pendiente de entrega';});
+  if(todasOCPend.length){
+    h += '<div class="card" style="margin-top:14px;border-color:#1565C0">'+
+      '<div class="ch" style="border-color:#1565C0;cursor:pointer" onclick="togglePanel(\'dash-oc-pend\')">'+
+        '<div class="ct" style="color:#4fc3f7">🛒 OC pendientes ('+todasOCPend.length+')</div>'+
+        '<span id="dash-oc-pend-ico" style="color:#4fc3f7;font-size:14px">▼</span>'+
+      '</div>'+
+      '<div id="dash-oc-pend" style="display:none"><div class="card-body">'+
+      '<table style="width:100%;border-collapse:collapse">'+
+        '<thead><tr style="background:var(--surface2)">'+
+          '<th style="padding:5px 10px;font-size:10px">N°</th>'+
+          '<th style="padding:5px 10px;font-size:10px">Proveedor</th>'+
+          '<th style="padding:5px 10px;font-size:10px">Tipo</th>'+
+          '<th style="padding:5px 10px;font-size:10px">Proyecto</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:center">Estado</th>'+
+          '<th style="padding:5px 10px;font-size:10px;text-align:right">Total $</th>'+
+          '<th style="padding:5px 10px;font-size:10px"></th>'+
+        '</tr></thead><tbody>'+
+        todasOCPend.map(function(oc){
+          var proy=oc.proyId?(DB.proyectos||[]).find(function(p){return p.id===oc.proyId;}):null;
+          var total=(oc.items||[]).reduce(function(a,item){return a+(parseFloat(item.cant)||0)*(parseFloat(item.precio)||0);},0);
+          var esReserva=!!oc.ocReserva;
+          var estColor=oc.estado==='Pendiente'||oc.estado==='Pendiente de compra'?'var(--red)':'var(--amber)';
+          return '<tr style="border-bottom:1px solid var(--border)">'+
+            '<td style="padding:6px 10px;font-size:11px;font-family:monospace;color:var(--text2)">'+oc.numero+'</td>'+
+            '<td style="padding:6px 10px;font-size:12px;font-weight:600">'+oc.proveedor+'</td>'+
+            '<td style="padding:6px 10px">'+
+              (esReserva?'<span style="background:#2a0a3a;color:#ce93d8;padding:1px 7px;border-radius:8px;font-size:10px">Reserva</span>':'<span style="background:var(--surface3);color:var(--text2);padding:1px 7px;border-radius:8px;font-size:10px">Normal</span>')+
+            '</td>'+
+            '<td style="padding:6px 10px;font-size:11px;color:var(--text2)">'+(proy?proy.numero:'--')+'</td>'+
+            '<td style="padding:6px 10px;text-align:center">'+
+              '<span style="background:var(--surface2);color:'+estColor+';padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;border:1px solid '+estColor+'">'+oc.estado+'</span>'+
+            '</td>'+
+            '<td style="padding:6px 10px;text-align:right;font-size:11px;font-weight:700">'+(total>0?'$'+Math.round(total).toLocaleString('es-AR'):'--')+'</td>'+
+            '<td style="padding:6px 10px">'+
+              '<button class="btn btn-sm" onclick="cambiarEstadoOrden('+oc.id+')">Estado</button>'+
+            '</td>'+
+          '</tr>';
+        }).join('')+
+        '</tbody></table>'+
+      '</div></div></div>';
+  }
+
+  // Panel entregas parciales — colapsable
   if(entregasParciales.length){
     h += '<div class="card" style="margin-top:14px;border-color:#E65100">'+
-      '<div class="ch" style="border-color:#E65100"><div class="ct" style="color:#ffa726">Entregas parciales</div><button class="btn btn-sm" onclick="goTo(\'ordenes\')">Ver OC</button></div>'+
-      '<div class="card-body">';
+      '<div class="ch" style="border-color:#E65100;cursor:pointer" onclick="togglePanel(\'dash-ent-parc\')">'+
+        '<div class="ct" style="color:#ffa726">📬 Entregas parciales ('+entregasParciales.length+')</div>'+
+        '<span id="dash-ent-parc-ico" style="color:#ffa726;font-size:14px">▼</span>'+
+      '</div>'+
+      '<div id="dash-ent-parc" style="display:none"><div class="card-body">';
     entregasParciales.forEach(function(p,idx){
       var matPendientes=(p.materiales||[]).filter(function(m){return (parseFloat(m.cantPendienteOC)||0)>0;});
       var ocVinculadas=DB.ordenes.filter(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Cancelada'&&o.estado!=='Recibida';});
       h += '<div style="'+(idx>0?'margin-top:14px;padding-top:14px;border-top:1px solid var(--border)':'')+'">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-          '<span style="font-size:12px;font-weight:700;color:#ffa726;cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.numero+' -- '+p.nombre+'</span>'+
+          '<span style="font-size:12px;font-weight:700;color:#ffa726;cursor:pointer" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)">'+p.numero+' — '+p.nombre+'</span>'+
         '</div>'+
         '<table style="width:100%;border-collapse:collapse;margin-bottom:8px">'+
           '<thead><tr>'+
@@ -4807,12 +4867,10 @@ function renderDashboard(){
           '</tr></thead><tbody>'+
           matPendientes.map(function(m){
             var comp=(compById(m.compId)||{desc:'?',unidad:''});
-            var entregado=parseFloat(m.entregado)||0;
-            var pendiente=parseFloat(m.cantPendienteOC)||0;
             return '<tr style="border-bottom:1px solid var(--border)">'+
               '<td style="padding:4px 0;font-size:11px">'+comp.desc+'</td>'+
-              '<td style="padding:4px 4px;text-align:center;font-weight:700;color:#66bb6a">'+entregado+' '+(comp.unidad||'')+'</td>'+
-              '<td style="padding:4px 4px;text-align:center;font-weight:700;color:#ef5350">'+pendiente+' '+(comp.unidad||'')+'</td>'+
+              '<td style="padding:4px 4px;text-align:center;font-weight:700;color:#66bb6a">'+(parseFloat(m.entregado)||0)+' '+(comp.unidad||'')+'</td>'+
+              '<td style="padding:4px 4px;text-align:center;font-weight:700;color:#ef5350">'+(parseFloat(m.cantPendienteOC)||0)+' '+(comp.unidad||'')+'</td>'+
             '</tr>';
           }).join('')+
           '</tbody></table>'+
@@ -4830,9 +4888,10 @@ function renderDashboard(){
               '</div>'+
             '</div>';
           }).join('')+
-          '</div>':'')+'</div>';
+          '</div>':'')+
+      '</div>';
     });
-    h += '</div></div>';
+    h += '</div></div></div>';
   }
 
   // Control de proyectos
