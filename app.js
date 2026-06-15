@@ -1204,19 +1204,16 @@ function abrirProyecto(id){
     // Presupuesto y avance
     '<hr class="div">'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">'+
-      // Presupuesto
       '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">'+
         '<div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Presupuesto</div>'+
         '<div style="font-size:16px;font-weight:700">$'+(Math.round(p.presupuesto||0).toLocaleString('es-AR'))+'</div>'+
         (!esFin?'<button class="btn btn-sm" style="margin-top:6px;font-size:10px" onclick="editarPresupuestoProyecto('+id+')">Editar</button>':'')+
       '</div>'+
-      // Costo materiales
       '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">'+
         '<div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Costo materiales</div>'+
         '<div style="font-size:16px;font-weight:700;color:'+(valor>(p.presupuesto||0)&&(p.presupuesto||0)>0?'var(--red)':'var(--text)')+'">$'+Math.round(valor).toLocaleString('es-AR')+'</div>'+
         ((p.presupuesto||0)>0?'<div style="font-size:10px;color:var(--text2);margin-top:2px">'+(valor>(p.presupuesto||0)?'⚠️ ':'')+Math.round(valor/(p.presupuesto||1)*100)+'% del presupuesto</div>':'')+
       '</div>'+
-      // Costo MO (suma de tareas)
       (function(){
         var moTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
         var totalGasto=valor+moTotal;
@@ -1227,6 +1224,81 @@ function abrirProyecto(id){
         '</div>';
       })()+
     '</div>'+
+    // KPIs Valor Ganado
+    (function(){
+      var presup=parseFloat(p.presupuesto)||0;
+      if(!presup) return '';
+      var pesoTotal=(p.tareas||[]).reduce(function(a,t){return a+(parseFloat(t.peso)||0);},0);
+      if(!pesoTotal) return '';
+      var avFisicoPct=(p.tareas||[]).reduce(function(a,t){
+        return a+(parseFloat(t.peso)||0)*(parseFloat(t.avanceReal)||0)/100;
+      },0)/100;
+      var EV=avFisicoPct*presup;
+      var matReal=(p.materiales||[]).reduce(function(a,m){
+        var comp=compById(m.compId)||{};
+        var ent=m.reservado?0:(parseFloat(m.entregado)||parseFloat(m.cant)||0);
+        return a+ent*(parseFloat(comp.costo)||0);
+      },0);
+      var moReal=(p.tareas||[]).filter(function(t){return tareaEstadoCached(t)==='OK';}).reduce(function(a,t){return a+(parseFloat(t.costoMO)||0);},0);
+      var AC=matReal+moReal;
+      var avTiempoPct=null,PV=null;
+      if(p.fechaInicio&&p.fechaEstFin){
+        var ini=new Date(p.fechaInicio),fin=new Date(p.fechaEstFin),hoyD=new Date(today());
+        avTiempoPct=Math.min(1,Math.max(0,(hoyD-ini)/(fin-ini)));
+        PV=avTiempoPct*presup;
+      }
+      var CPI=AC>0?Math.round(EV/AC*100)/100:null;
+      var SPI=PV!==null&&PV>0?Math.round(EV/PV*100)/100:null;
+      var EAC=CPI&&CPI>0?AC+(presup-EV)/CPI:null;
+      var VAC=EAC!==null?Math.round(presup-EAC):null;
+      var cpiColor=CPI===null?'var(--text2)':CPI>=1?'var(--green)':CPI>=0.8?'var(--amber)':'var(--red)';
+      var spiColor=SPI===null?'var(--text2)':SPI>=1?'var(--green)':SPI>=0.8?'var(--amber)':'var(--red)';
+      var vacColor=VAC===null?'var(--text2)':VAC>=0?'var(--green)':'var(--red)';
+      return '<div style="background:#0a0a1a;border:1px solid #1a1a3a;border-radius:var(--r);padding:10px 14px;margin-bottom:12px">'+
+        '<div style="font-size:10px;color:#4fc3f7;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">KPIs — Método del Valor Ganado</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">'+
+          '<div style="background:var(--surface2);border-radius:5px;padding:6px 8px;text-align:center">'+
+            '<div style="font-size:9px;color:var(--text2);margin-bottom:2px">EV Valor ganado</div>'+
+            '<div style="font-size:13px;font-weight:700;color:#4fc3f7">$'+Math.round(EV).toLocaleString('es-AR')+'</div>'+
+            '<div style="font-size:9px;color:var(--text2)">'+Math.round(avFisicoPct*100)+'% físico</div>'+
+          '</div>'+
+          '<div style="background:var(--surface2);border-radius:5px;padding:6px 8px;text-align:center">'+
+            '<div style="font-size:9px;color:var(--text2);margin-bottom:2px">AC Costo real</div>'+
+            '<div style="font-size:13px;font-weight:700">$'+Math.round(AC).toLocaleString('es-AR')+'</div>'+
+            '<div style="font-size:9px;color:var(--text2)">Mat + MO OK</div>'+
+          '</div>'+
+          (PV!==null?
+            '<div style="background:var(--surface2);border-radius:5px;padding:6px 8px;text-align:center">'+
+              '<div style="font-size:9px;color:var(--text2);margin-bottom:2px">PV Valor planif.</div>'+
+              '<div style="font-size:13px;font-weight:700">$'+Math.round(PV).toLocaleString('es-AR')+'</div>'+
+              '<div style="font-size:9px;color:var(--text2)">'+Math.round(avTiempoPct*100)+'% tiempo</div>'+
+            '</div>':'')+
+          '<div style="background:var(--surface2);border-radius:5px;padding:6px 8px;text-align:center">'+
+            '<div style="font-size:9px;color:var(--text2);margin-bottom:2px">CPI</div>'+
+            '<div style="font-size:20px;font-weight:900;color:'+cpiColor+'">'+(CPI===null?'--':CPI.toFixed(2))+'</div>'+
+            '<div style="font-size:9px;color:'+cpiColor+'">'+(CPI===null?'Sin AC':CPI>=1?'OK':CPI>=0.8?'Alerta':'Crítico')+'</div>'+
+          '</div>'+
+          '<div style="background:var(--surface2);border-radius:5px;padding:6px 8px;text-align:center">'+
+            '<div style="font-size:9px;color:var(--text2);margin-bottom:2px">SPI</div>'+
+            '<div style="font-size:20px;font-weight:900;color:'+spiColor+'">'+(SPI===null?'--':SPI.toFixed(2))+'</div>'+
+            '<div style="font-size:9px;color:'+spiColor+'">'+(SPI===null?'Sin fechas':SPI>=1?'OK':SPI>=0.8?'Alerta':'Crítico')+'</div>'+
+          '</div>'+
+          (EAC!==null?
+            '<div style="background:var(--surface2);border-radius:5px;padding:6px 8px;text-align:center">'+
+              '<div style="font-size:9px;color:var(--text2);margin-bottom:2px">EAC</div>'+
+              '<div style="font-size:13px;font-weight:700;color:'+(EAC>presup?'var(--red)':'var(--green)')+'">$'+Math.round(EAC).toLocaleString('es-AR')+'</div>'+
+              '<div style="font-size:9px;color:var(--text2)">Costo final est.</div>'+
+            '</div>':'')+
+          (VAC!==null?
+            '<div style="background:var(--surface2);border-radius:5px;padding:6px 8px;text-align:center">'+
+              '<div style="font-size:9px;color:var(--text2);margin-bottom:2px">VAC</div>'+
+              '<div style="font-size:13px;font-weight:700;color:'+vacColor+'">'+(VAC>=0?'+':'')+Math.round(VAC).toLocaleString('es-AR')+'</div>'+
+              '<div style="font-size:9px;color:'+vacColor+'">'+(VAC>=0?'Ahorro':'Desvío')+'</div>'+
+            '</div>':'')+
+        '</div>'+
+        '<div style="font-size:9px;color:var(--text3);margin-top:6px">EV=avance físico×BAC · CPI=EV/AC · SPI=EV/PV · EAC=AC+(BAC−EV)/CPI · VAC=BAC−EAC</div>'+
+      '</div>';
+    })()+
     // % Avance
     '<div style="margin-bottom:12px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
