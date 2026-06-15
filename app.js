@@ -4032,34 +4032,47 @@ function renderDashProy(){
     var hoyPct=Math.min(100,Math.max(0,Math.round((new Date(hoy).getTime()-tMin)/rango*100)));
 
     h+='<div class="card" style="margin-bottom:14px"><div class="ch"><div class="ct">Gantt — línea de tiempo</div></div><div class="card-body">';
-    h+='<div style="position:relative;margin-bottom:8px">';
-    // Línea de hoy
-    h+='<div style="position:absolute;left:'+hoyPct+'%;top:0;bottom:0;width:2px;background:var(--primary);z-index:2;pointer-events:none">'+
-      '<div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--primary);font-weight:700;white-space:nowrap">HOY</div>'+
+
+    // Cabecera con eje de fechas alineado con las barras
+    var NAME_W=180, DATE_W=76;
+    h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+      '<div style="width:'+NAME_W+'px;flex-shrink:0"></div>'+
+      '<div style="flex:1;position:relative;height:16px">'+
+        '<span style="position:absolute;left:0;font-size:9px;color:var(--text3)">'+fechaMin+'</span>'+
+        '<span style="position:absolute;right:0;font-size:9px;color:var(--text3)">'+fechaMax+'</span>'+
+        // Línea HOY en el eje
+        (hoyPct>0&&hoyPct<100?'<div style="position:absolute;left:'+hoyPct+'%;top:0;bottom:0;display:flex;flex-direction:column;align-items:center">'+
+          '<span style="font-size:9px;color:var(--primary);font-weight:700;white-space:nowrap;transform:translateX(-50%)">HOY</span>'+
+        '</div>':'')+
+      '</div>'+
+      '<div style="width:'+DATE_W+'px;flex-shrink:0"></div>'+
     '</div>';
 
+    // Filas de proyectos
     conFechas.forEach(function(p){
       var ini=new Date(p.fechaInicio).getTime();
       var fin=new Date(p.fechaFinReal||p.fechaEstFin).getTime();
       var left=Math.round((ini-tMin)/rango*100);
       var width=Math.max(1,Math.round((fin-ini)/rango*100));
-      var colEstadoG={Planificado:'var(--amber)','En curso':'var(--blue)',Pausado:'#666',Finalizado:'var(--green)'};
+      var colEstadoG={Planificado:'var(--amber)','En curso':'var(--blue)',Pausado:'#666',Finalizado:'var(--green)',Cancelado:'var(--red)'};
       var col=colEstadoG[p.estado]||'var(--text3)';
 
-      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
-        '<div style="font-size:11px;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--text)" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)" title="'+p.nombre+'">'+p.nombre+'</div>'+
-        '<div style="flex:1;position:relative;height:20px;background:var(--surface3);border-radius:3px;overflow:visible">'+
-          '<div style="position:absolute;left:'+left+'%;width:'+width+'%;height:100%;background:'+col+';border-radius:3px;opacity:0.85;min-width:3px" title="'+p.fechaInicio+' → '+(p.fechaFinReal||p.fechaEstFin)+'"></div>'+
+      h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'+
+        // Nombre — ancho fijo, fuera del contenedor de barras
+        '<div style="font-size:11px;width:'+NAME_W+'px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;color:var(--text)" onclick="cerrarBusqueda();goTo(\'proyectos\');setTimeout(function(){abrirProyecto('+p.id+');},200)" title="'+p.nombre+'">'+
+          '<span style="color:var(--text3);font-size:10px;font-family:monospace;margin-right:4px">'+p.numero+'</span>'+p.nombre+
         '</div>'+
-        '<div style="font-size:10px;color:var(--text2);width:70px;flex-shrink:0;text-align:right">'+( p.fechaFinReal||p.fechaEstFin)+'</div>'+
+        // Barra con línea HOY superpuesta
+        '<div style="flex:1;position:relative;height:18px;background:var(--surface3);border-radius:3px;overflow:hidden">'+
+          '<div style="position:absolute;left:'+left+'%;width:'+width+'%;height:100%;background:'+col+';border-radius:3px;opacity:0.85;min-width:3px" title="'+p.fechaInicio+' → '+(p.fechaFinReal||p.fechaEstFin)+'"></div>'+
+          // Línea HOY sobre la barra
+          (hoyPct>0&&hoyPct<100?'<div style="position:absolute;left:'+hoyPct+'%;top:0;bottom:0;width:2px;background:var(--primary);z-index:2"></div>':'')+
+        '</div>'+
+        // Fecha fin alineada a la derecha
+        '<div style="font-size:10px;color:var(--text2);width:'+DATE_W+'px;flex-shrink:0;text-align:right">'+(p.fechaFinReal||p.fechaEstFin)+'</div>'+
       '</div>';
     });
 
-    h+='</div>';
-    // Eje de fechas
-    h+='<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:4px;padding-left:168px;padding-right:78px">'+
-      '<span>'+fechaMin+'</span><span>'+fechaMax+'</span>'+
-    '</div>';
     h+='</div></div>';
   }
 
