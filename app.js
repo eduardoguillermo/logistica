@@ -3920,7 +3920,7 @@ function renderDashboard(){
       '</tr>';
     });
     h += '</table>';
-    if(stockCritico.length>4) h += '<div style="font-size:11px;color:var(--text2);margin-top:6px">...y '+(stockCritico.length-4)+' mas</div>';
+    if(stockCritico.length>4) h += '<div style="font-size:11px;color:var(--primary);margin-top:6px;cursor:pointer;text-decoration:underline" onclick="goTo(\'stock\');setTimeout(function(){_stockSort={col:\'cant\',dir:1};renderStock();},200)">...y '+(stockCritico.length-4)+' más — ver todos ↓</div>';
   }
   h += '</div></div>';
 
