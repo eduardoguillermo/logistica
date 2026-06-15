@@ -4568,6 +4568,10 @@ if('serviceWorker' in navigator){
 // =======================================================
 // DASHBOARD
 // =======================================================
+function irAStockCritico(){
+  _stockSort={col:'cant',dir:1};
+  goTo('stock');
+}
 function renderDashboard(){
   var el = document.getElementById('dashboard-body');
   if(!el) return;
@@ -4644,7 +4648,7 @@ function renderDashboard(){
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'proyectos\')"><div class="stat-n amber">'+proyPlanif.length+'</div><div class="stat-l">Planificados</div></div>'+
     (proyPausados.length?'<div class="stat" style="cursor:pointer;border-color:#555" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#aaa">'+proyPausados.length+'</div><div class="stat-l">Pausados</div></div>':'')+
     (tareasVencidas.length?'<div class="stat" style="cursor:pointer;border-color:#7f0000" onclick="goTo(\'proyectos\')"><div class="stat-n red">'+tareasVencidas.length+'</div><div class="stat-l">Tareas vencidas</div></div>':'')+
-    '<div class="stat" style="cursor:pointer" onclick="goTo(\'stock\')"><div class="stat-n '+(stockCritico.length>0?'red':'green')+'">'+stockCritico.length+'</div><div class="stat-l">Stock critico</div></div>'+
+    '<div class="stat" style="cursor:pointer" onclick="irAStockCritico()"><div class="stat-n '+(stockCritico.length>0?'red':'green')+'">'+stockCritico.length+'</div><div class="stat-l">Stock critico</div></div>'+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'ordenes\')"><div class="stat-n">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>'+
     (depositosTransitorios.length?'<div class="stat" style="cursor:pointer;border-color:#6a1b9a" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#ce93d8">'+depositosTransitorios.length+'</div><div class="stat-l">Dep. transitorios</div></div>':'')+
     (entregasParciales.length?'<div class="stat" style="cursor:pointer;border-color:#E65100" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#ffa726">'+entregasParciales.length+'</div><div class="stat-l">Entregas parciales</div></div>':'')+
@@ -4702,7 +4706,7 @@ function renderDashboard(){
 
   // Panel stock critico
   h += '<div class="card">'+
-    '<div class="ch"><div class="ct">Stock critico</div><button class="btn btn-sm" onclick="goTo(\'stock\')">Ver stock</button></div>'+
+    '<div class="ch"><div class="ct">Stock critico</div><button class="btn btn-sm" onclick="irAStockCritico()">Ver stock</button></div>'+
     '<div class="card-body">';
   if(!stockCritico.length){
     h += '<div class="empty" style="color:var(--green)">Sin componentes criticos.</div>';
@@ -4725,7 +4729,7 @@ function renderDashboard(){
       '</tr>';
     });
     h += '</table>';
-    if(stockCritico.length>4) h += '<div style="font-size:11px;color:var(--primary);margin-top:6px;cursor:pointer;text-decoration:underline" onclick="goTo(\'stock\');setTimeout(function(){_stockSort={col:\'cant\',dir:1};renderStock();},200)">...y '+(stockCritico.length-4)+' más — ver todos ↓</div>';
+    if(stockCritico.length>4) h += '<div style="font-size:11px;color:var(--primary);margin-top:6px;cursor:pointer;text-decoration:underline" onclick="irAStockCritico()">...y '+(stockCritico.length-4)+' más — ver todos ↓</div>';
   }
   h += '</div></div>';
 
