@@ -868,20 +868,20 @@ function editarMovimiento(id){
 var PROJ_ESTADOS = ['Planificado','En curso','Pausado','Finalizado','Cancelado'];
 
 function tareaEstado(t){
-  // Si tiene estado manual (OK o Cancelado) respetarlo
   if(t.estadoManual==='OK') return 'OK';
   if(t.estadoManual==='Cancelado') return 'Cancelado';
-  // Atrasado automático
+  if(t.estadoManual==='Pendiente confirmacion') return 'Pendiente confirmacion';
   if(t.fechaCumplimiento && t.fechaCumplimiento < today()) return 'Atrasado';
   return 'En curso';
 }
 
 function tareaPill(estado){
   var map={
-    'En curso': {bg:'var(--blue)',   label:'En curso'},
-    'OK':       {bg:'var(--green)',  label:'OK'},
-    'Atrasado': {bg:'var(--red)',    label:'Atrasado'},
-    'Cancelado':{bg:'var(--text3)', label:'Cancelado'}
+    'En curso':              {bg:'var(--blue)',   label:'En curso'},
+    'OK':                    {bg:'var(--green)',  label:'OK'},
+    'Atrasado':              {bg:'var(--red)',    label:'Atrasado'},
+    'Cancelado':             {bg:'var(--text3)', label:'Cancelado'},
+    'Pendiente confirmacion':{bg:'#6a1b9a',      label:'Pend. confirm.'}
   };
   var s=map[estado]||map['En curso'];
   return '<span style="background:'+s.bg+';color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">'+s.label+'</span>';
@@ -1034,6 +1034,9 @@ function modalNuevoProyecto(){
     function(){
       var nombre=document.getElementById('np-nombre').value.trim();
       if(!nombre){alert('El nombre es obligatorio.');return false;}
+      var fIni=document.getElementById('np-finicio')?document.getElementById('np-finicio').value:'';
+      var fFin=document.getElementById('np-festfin')?document.getElementById('np-festfin').value:'';
+      if(fIni&&fFin&&fFin<fIni){alert('La fecha de fin estimada no puede ser anterior a la fecha de inicio.');return false;}
       var proj={
         id:DB.proyNid++,
         numero:num,
@@ -1280,6 +1283,7 @@ function abrirProyecto(id){
             (!esFin?'<td style="padding:6px 10px;display:flex;gap:3px">'+
               '<button class="btn btn-sm" onclick="editarTareaProyecto('+id+','+ti+')" title="Editar">✏️</button>'+
               '<button class="btn btn-sm" onclick="marcarTareaOK('+id+','+ti+')" title="Marcar OK" style="color:var(--green)">✔</button>'+
+              '<button class="btn btn-sm" onclick="marcarTareaPendConf('+id+','+ti+')" title="Pendiente confirmación" style="color:#ce93d8">⏳</button>'+
               '<button class="btn btn-sm" onclick="cancelarTarea('+id+','+ti+')" title="Cancelar" style="color:var(--text3)">✕</button>'+
               '<button class="btn btn-sm" onclick="eliminarTarea('+id+','+ti+')" title="Eliminar" style="color:var(--red)">🗑</button>'+
             '</td>':'')+
@@ -1452,6 +1456,7 @@ function editarTareaProyecto(projId, idx){
         '<select id="et-estado" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
           '<option value="">Automatico ('+(estadoActual)+')</option>'+
           '<option value="OK"'+(t.estadoManual==='OK'?' selected':'')+'>OK</option>'+
+          '<option value="Pendiente confirmacion"'+(t.estadoManual==='Pendiente confirmacion'?' selected':'')+'>Pendiente confirmación</option>'+
           '<option value="Cancelado"'+(t.estadoManual==='Cancelado'?' selected':'')+'>Cancelado</option>'+
         '</select></div>'+
     '</div>',
@@ -1480,6 +1485,14 @@ function marcarTareaOK(projId, idx){
   var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
   if(!p||!p.tareas[idx]) return;
   p.tareas[idx].estadoManual='OK';
+  save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);
+}
+
+function marcarTareaPendConf(projId, idx){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
+  if(!p||!p.tareas[idx]) return;
+  p.tareas[idx].estadoManual='Pendiente confirmacion';
+  p.historial.push({fecha:today(),accion:'Tarea "'+p.tareas[idx].desc+'" marcada como Pendiente confirmacion'});
   save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);
 }
 
@@ -1890,30 +1903,73 @@ function iniciarCierreProyecto(id){
   if(esOperador()){alert("Accion no permitida para Operador.");return;}
   var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
   if(!p) return;
-  var sobrantes=p.materiales.filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
-  if(!sobrantes.length){
-    if(confirm('No hay sobrantes. Finalizar el proyecto?')){
-      p.estado='Finalizado';p.fechaFinReal=today();
-      p.historial.push({fecha:today(),accion:'Proyecto finalizado',estado:'Finalizado'});
-      save();cerrarModal();renderProyectos();
-    }
+
+  // CHECKLIST DE CIERRE
+  var checks=[];
+  var tareasTotal=(p.tareas||[]).length;
+  var tareasOK=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='OK';}).length;
+  var tareasPendConf=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Pendiente confirmacion';}).length;
+  var tareasAt=(p.tareas||[]).filter(function(t){return tareaEstado(t)==='Atrasado';}).length;
+  var tieneOCPendiente=(DB.ordenes||[]).some(function(o){return o.ocReserva&&o.proyId===p.id&&o.estado!=='Recibida'&&o.estado!=='Cancelada';});
+  var tieneDocumentacion=(p.notas||[]).length>0||(p.onedriveLinks||[]).length>0||p.onedrive;
+  var tienePresupuesto=parseFloat(p.presupuesto)||0;
+
+  if(tareasAt>0) checks.push({ok:false,label:tareasAt+' tarea'+(tareasAt>1?'s':'')+' atrasada'+(tareasAt>1?'s':'')+' sin completar'});
+  if(tareasPendConf>0) checks.push({ok:false,label:tareasPendConf+' tarea'+(tareasPendConf>1?'s':'')+' pendiente'+(tareasPendConf>1?'s':'')+' de confirmacion'});
+  if(tareasTotal>0&&tareasOK<tareasTotal) checks.push({ok:false,label:(tareasTotal-tareasOK-tareasAt-tareasPendConf)+' tarea'+(tareasTotal-tareasOK>1?'s':'')+' en curso sin completar'});
+  if(tieneOCPendiente) checks.push({ok:false,label:'Hay OC de reserva pendientes de recibir'});
+  checks.push({ok:tareasTotal>0&&tareasOK===tareasTotal,label:'Todas las tareas completadas ('+tareasOK+'/'+tareasTotal+')'});
+  checks.push({ok:tieneDocumentacion,label:'Documentacion / notas cargadas'});
+  checks.push({ok:tienePresupuesto>0,label:'Presupuesto cargado'});
+
+  var alertas=checks.filter(function(c){return !c.ok&&['atrasada','pendiente de confirmacion','en curso'].some(function(x){return c.label.toLowerCase().indexOf(x)>-1;})});
+  var bloqueantes=checks.filter(function(c){return !c.ok&&c.label.indexOf('OC')>-1;});
+
+  var htmlCheck='<div style="margin-bottom:14px">'+
+    '<div style="font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Checklist de cierre</div>'+
+    checks.map(function(ch){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">'+
+        '<span style="font-size:14px">'+(ch.ok?'✅':'⚠️')+'</span>'+
+        '<span style="font-size:12px;color:'+(ch.ok?'var(--green)':'var(--amber)')+'">'+ch.label+'</span>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+
+  if(bloqueantes.length){
+    openModal('No se puede cerrar -- '+p.numero,
+      htmlCheck+
+      '<div style="background:#3a0000;border-radius:var(--r);padding:10px 14px;font-size:12px;color:#ef5350">'+
+        'No se puede finalizar el proyecto mientras haya OC de reserva pendientes.'+
+      '</div>',
+      null, true);
     return;
   }
-  // Modal devolución de sobrantes
-  var compOpts=sobrantes.map(function(m){
-    var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
-    var enProyecto=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
-    return '<tr style="border-bottom:1px solid var(--border)">'+
-      '<td style="padding:6px 10px;font-size:12px">'+comp.desc+'</td>'+
-      '<td style="padding:6px 10px;text-align:center">'+enProyecto+' '+(comp.unidad||'')+'</td>'+
-      '<td style="padding:6px 10px"><input type="number" class="dev-cant" data-compid="'+m.compId+'" min="0" max="'+enProyecto+'" value="'+enProyecto+'" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center;background:var(--surface2);color:var(--text)"></td>'+
-    '</tr>';
-  }).join('');
+
+  var sobrantes=p.materiales.filter(function(m){return (parseFloat(m.cant)||0)>(parseFloat(m.devuelto)||0);});
+  var tieneAlertas=alertas.length>0;
+
+  var htmlSobrantes='';
+  if(sobrantes.length){
+    var compOpts=sobrantes.map(function(m){
+      var comp=DB.componentes.find(function(c){return c.id===m.compId;})||{desc:'?',unidad:''};
+      var enProyecto=(parseFloat(m.cant)||0)-(parseFloat(m.devuelto)||0);
+      return '<tr style="border-bottom:1px solid var(--border)">'+
+        '<td style="padding:6px 10px;font-size:12px">'+comp.desc+'</td>'+
+        '<td style="padding:6px 10px;text-align:center">'+enProyecto+' '+(comp.unidad||'')+'</td>'+
+        '<td style="padding:6px 10px"><input type="number" class="dev-cant" data-compid="'+m.compId+'" min="0" max="'+enProyecto+'" value="'+enProyecto+'" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center;background:var(--surface2);color:var(--text)"></td>'+
+      '</tr>';
+    }).join('');
+    htmlSobrantes='<div style="font-size:11px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Devolución de sobrantes</div>'+
+      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Indicá cuánto devolver al stock. Pone 0 para no devolver.</p>'+
+      '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="background:var(--surface2)"><th style="padding:6px 10px;font-size:10px">Componente</th><th style="padding:6px 10px;font-size:10px;text-align:center">En proyecto</th><th style="padding:6px 10px;font-size:10px;text-align:center">A devolver</th></tr></thead>'+
+      '<tbody>'+compOpts+'</tbody></table>';
+  }
+
   openModal('Cierre de proyecto -- '+p.numero,
-    '<p style="font-size:12px;color:var(--text2);margin-bottom:12px">Indica cuanto devolver al stock de cada material sobrante. Pone 0 para no devolver.</p>'+
-    '<table style="width:100%;border-collapse:collapse">'+
-    '<thead><tr style="background:var(--surface2)"><th style="padding:6px 10px;font-size:10px">Componente</th><th style="padding:6px 10px;font-size:10px;text-align:center">En proyecto</th><th style="padding:6px 10px;font-size:10px;text-align:center">A devolver</th></tr></thead>'+
-    '<tbody>'+compOpts+'</tbody></table>',
+    htmlCheck+
+    (tieneAlertas?'<div style="background:#2a1a00;border:1px solid var(--amber);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--amber);margin-bottom:12px">Hay ítems sin completar. Podés continuar igual.</div>':'')+
+    htmlSobrantes,
     function(){
       var inputs=document.querySelectorAll('.dev-cant');
       inputs.forEach(function(inp){
@@ -1923,10 +1979,7 @@ function iniciarCierreProyecto(id){
         var mat=p.materiales.find(function(m){return m.compId===compId;});
         if(!mat) return;
         mat.devuelto=(parseFloat(mat.devuelto)||0)+cantDev;
-        DB.movimientos.push({
-          id:DB.nid++,cid:compId,tipo:'Entrada',cant:cantDev,
-          fecha:today(),ref:p.numero,nota:'Devolucion proyecto '+p.numero,origen:'Devolucion proyecto'
-        });
+        DB.movimientos.push({id:DB.nid++,cid:compId,tipo:'Entrada',cant:cantDev,fecha:today(),ref:p.numero,nota:'Devolucion proyecto '+p.numero,origen:'Devolucion proyecto'});
         var comp=DB.componentes.find(function(c){return c.id===compId;})||{desc:'?'};
         p.historial.push({fecha:today(),accion:'Devuelto al stock: '+comp.desc+' x'+cantDev});
       });
