@@ -1390,7 +1390,19 @@ function abrirProyecto(id){
           var avR=parseFloat(t.avanceReal)||0;
           var peso=parseFloat(t.peso)||0;
           return '<tr style="border-bottom:1px solid var(--border)'+(estado==='Atrasado'?';background:rgba(239,83,80,0.06)':'')+'">'+
-            '<td style="padding:6px 10px;font-size:12px'+(estado==='OK'?';color:var(--text2);text-decoration:line-through':'')+'">'+t.desc+'</td>'+
+            '<td style="padding:6px 10px;font-size:12px'+(estado==='OK'?';color:var(--text2);text-decoration:line-through':'')+'">'+
+              t.desc+
+              // Indicador de dependencias
+              ((t.deps||[]).length?
+                '<div style="margin-top:2px;display:flex;flex-wrap:wrap;gap:3px">'+
+                (t.deps||[]).map(function(dep){
+                  var pred=p.tareas[dep.tareaIdx];
+                  if(!pred) return '';
+                  var bloq=validarDependencias(p,ti,'completar')||validarDependencias(p,ti,'iniciar');
+                  var estaDep=bloq?bloq.some(function(b){return b.pred===pred;}):false;
+                  return '<span style="font-size:9px;background:'+(estaDep?'#3a0000':'#0a2a0a')+';color:'+(estaDep?'#ef5350':'#66bb6a')+';padding:1px 5px;border-radius:4px">'+dep.tipo+': '+pred.desc.slice(0,20)+'</span>';
+                }).join('')+
+                '</div>':'')+'</td>'+
             (function(){var opA=t.operario?(DB.operarios||[]).find(function(o){return o.id===t.operario;}):null;return '<td style="padding:6px 10px;text-align:center;font-size:10px;color:var(--text2)">'+(opA?'<span style="background:var(--surface3);padding:1px 6px;border-radius:8px">'+opA.nombre+'</span>':'--')+'</td>';})()+
             '<td style="padding:6px 10px;text-align:center;font-size:11px;color:'+vencColor+'">'+(t.fechaCumplimiento||'--')+'</td>'+
             '<td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text2)">'+(peso>0?peso+'%':'--')+'</td>'+
@@ -1592,6 +1604,28 @@ function editarTareaProyecto(projId, idx){
           '<option value="Pendiente confirmacion"'+(t.estadoManual==='Pendiente confirmacion'?' selected':'')+'>Pendiente confirmación</option>'+
           '<option value="Cancelado"'+(t.estadoManual==='Cancelado'?' selected':'')+'>Cancelado</option>'+
         '</select></div>'+
+      // Dependencias
+      ((p.tareas||[]).length>1?
+        '<div class="fg full" style="grid-column:1/-1">'+
+          '<label>Dependencias <span style="font-size:10px;color:var(--text2)">(esta tarea depende de...)</span></label>'+
+          '<div id="et-deps" style="display:flex;flex-direction:column;gap:6px;margin-top:4px">'+
+            (p.tareas||[]).map(function(ot,oi){
+              if(oi===idx) return '';
+              var depExist=(t.deps||[]).find(function(d){return d.tareaIdx===oi;});
+              return '<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border-radius:5px;padding:6px 8px">'+
+                '<input type="checkbox" id="dep-'+oi+'" '+(depExist?'checked':'')+' style="flex-shrink:0">'+
+                '<label for="dep-'+oi+'" style="flex:1;font-size:11px;cursor:pointer">'+ot.desc.slice(0,40)+'</label>'+
+                '<select id="dep-tipo-'+oi+'" style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:var(--surface2);color:var(--text)">'+
+                  '<option value="FI"'+(depExist&&depExist.tipo==='FI'?' selected':'')+' title="B no inicia hasta que A termine">FI — Fin→Inicio</option>'+
+                  '<option value="II"'+(depExist&&depExist.tipo==='II'?' selected':'')+' title="B no inicia hasta que A inicie">II — Inicio→Inicio</option>'+
+                  '<option value="FF"'+(depExist&&depExist.tipo==='FF'?' selected':'')+' title="B no termina hasta que A termine">FF — Fin→Fin</option>'+
+                  '<option value="IF"'+(depExist&&depExist.tipo==='IF'?' selected':'')+' title="B no termina hasta que A inicie">IF — Inicio→Fin</option>'+
+                '</select>'+
+              '</div>';
+            }).join('')+
+          '</div>'+
+        '</div>':''+
+      '')+
     '</div>',
     function(){
       var desc=document.getElementById('et-desc').value.trim();
@@ -1617,20 +1651,67 @@ function editarTareaProyecto(projId, idx){
       t.avanceReal=Math.min(100,Math.max(0,parseFloat(document.getElementById('et-avance')?document.getElementById('et-avance').value:0)||0));
       var est=document.getElementById('et-estado').value;
       t.estadoManual=est||null;
+      // Guardar dependencias
+      var newDeps=[];
+      (p.tareas||[]).forEach(function(ot,oi){
+        if(oi===idx) return;
+        var cb=document.getElementById('dep-'+oi);
+        if(cb&&cb.checked){
+          var sel=document.getElementById('dep-tipo-'+oi);
+          newDeps.push({tareaIdx:oi,tipo:sel?sel.value:'FI'});
+        }
+      });
+      t.deps=newDeps;
       save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);return true;
     });
+}
+
+// Verifica si una tarea puede avanzar según sus dependencias
+// accion: 'iniciar' (II, IF) o 'completar' (FI, FF)
+function validarDependencias(p, idx, accion){
+  var t=(p.tareas||[])[idx];
+  if(!t||!(t.deps||[]).length) return null; // sin dependencias, OK
+  var bloqueantes=[];
+  (t.deps||[]).forEach(function(dep){
+    var pred=p.tareas[dep.tareaIdx];
+    if(!pred) return;
+    var estadoPred=tareaEstadoCached(pred);
+    var predIniciada=pred.avanceReal>0||estadoPred==='OK'||estadoPred==='Pendiente confirmacion';
+    var predCompletada=estadoPred==='OK';
+    var bloquea=false;
+    if(accion==='iniciar'){
+      if(dep.tipo==='FI'&&!predCompletada) bloquea=true;  // B no inicia hasta que A termine
+      if(dep.tipo==='II'&&!predIniciada)   bloquea=true;  // B no inicia hasta que A inicie
+    } else { // completar
+      if(dep.tipo==='FF'&&!predCompletada) bloquea=true;  // B no termina hasta que A termine
+      if(dep.tipo==='IF'&&!predIniciada)   bloquea=true;  // B no termina hasta que A inicie
+    }
+    if(bloquea) bloqueantes.push({pred:pred,tipo:dep.tipo});
+  });
+  return bloqueantes.length?bloqueantes:null;
 }
 
 function marcarTareaOK(projId, idx){
   var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
   if(!p||!p.tareas[idx]) return;
+  var bloq=validarDependencias(p,idx,'completar');
+  if(bloq){
+    alert('No se puede completar esta tarea. Dependencias pendientes:\n'+bloq.map(function(b){return '• '+b.tipo+': "'+b.pred.desc+'"';}).join('\n'));
+    return;
+  }
   p.tareas[idx].estadoManual='OK';
+  p.tareas[idx].avanceReal=100;
   save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);
 }
 
 function marcarTareaPendConf(projId, idx){
   var p=(DB.proyectos||[]).find(function(x){return x.id===projId;});
   if(!p||!p.tareas[idx]) return;
+  var bloq=validarDependencias(p,idx,'completar');
+  if(bloq){
+    alert('No se puede marcar como pendiente de confirmación. Dependencias pendientes:\n'+bloq.map(function(b){return '• '+b.tipo+': "'+b.pred.desc+'"';}).join('\n'));
+    return;
+  }
   p.tareas[idx].estadoManual='Pendiente confirmacion';
   p.historial.push({fecha:today(),accion:'Tarea "'+p.tareas[idx].desc+'" marcada como Pendiente confirmacion'});
   save();cerrarModal();setTimeout(function(){abrirProyecto(projId);},100);
