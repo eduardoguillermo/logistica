@@ -1186,6 +1186,7 @@ function abrirProyecto(id){
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarTareaProyecto('+id+')">&#x1F4CB; Tarea</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarAlcanceProyecto('+id+')">&#x1F4CB; Alcance</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="verRedTareas('+id+')">&#x1F578; Red</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
         (esEnCurso?
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="agregarMaterialProyecto('+id+')">&#x2795; Material</button>'+
@@ -1193,12 +1194,14 @@ function abrirProyecto(id){
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="iniciarCierreProyecto('+id+')">&#x1F3C1; Iniciar cierre</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarAlcanceProyecto('+id+')">&#x1F4CB; Alcance</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="verRedTareas('+id+')">&#x1F578; Red</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--amber);border-color:var(--amber)" onclick="pausarProyecto('+id+')">&#x23F8; Pausar</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
         (p.estado==='Pausado'?
           '<button class="btn btn-p" style="font-size:12px;padding:6px 14px" onclick="cambiarEstadoProyecto('+id+",'En curso')"+'>&#x25B6; Reanudar</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarPresupuestoProyecto('+id+')">&#x1F4B0; Presupuesto</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="editarAlcanceProyecto('+id+')">&#x1F4CB; Alcance</button>'+
+          '<button class="btn" style="font-size:12px;padding:6px 14px" onclick="verRedTareas('+id+')">&#x1F578; Red</button>'+
           '<button class="btn" style="font-size:12px;padding:6px 14px;color:var(--red);border-color:var(--red)" onclick="cancelarProyecto('+id+')">&#x274C; Cancelar</button>':'')+
       '</div>':'')+''+
     // Presupuesto y avance
@@ -3697,9 +3700,153 @@ function reporteUsoRecursos(){
   reporteContainer('Uso de recursos por proyecto', h);
 }
 
-// =======================================================
-// DASHBOARD DE PROYECTOS
-// =======================================================
+function verRedTareas(id){
+  var p=(DB.proyectos||[]).find(function(x){return x.id===id;});
+  if(!p||(p.tareas||[]).length===0){alert('El proyecto no tiene tareas.');return;}
+  var tareas=p.tareas||[];
+
+  // Layout: calcular niveles por topological sort
+  var niveles=[];
+  var nivel=new Array(tareas.length).fill(0);
+  // Calcular nivel máximo de predecesores
+  for(var i=0;i<tareas.length;i++){
+    var deps=tareas[i].deps||[];
+    deps.forEach(function(dep){
+      if(dep.tareaIdx<tareas.length){
+        nivel[i]=Math.max(nivel[i],nivel[dep.tareaIdx]+1);
+      }
+    });
+  }
+  var maxNivel=Math.max.apply(null,nivel);
+
+  // Agrupar por nivel
+  var porNivel={};
+  for(var i=0;i<tareas.length;i++){
+    var nv=nivel[i];
+    if(!porNivel[nv]) porNivel[nv]=[];
+    porNivel[nv].push(i);
+  }
+
+  // Dimensiones
+  var NODE_W=160,NODE_H=52,GAP_X=60,GAP_Y=20;
+  var cols=maxNivel+1;
+  var maxRows=Math.max.apply(null,Object.values(porNivel).map(function(a){return a.length;}));
+  var SVG_W=cols*(NODE_W+GAP_X)+GAP_X;
+  var SVG_H=maxRows*(NODE_H+GAP_Y)+GAP_Y+40;
+
+  // Posiciones de cada nodo
+  var pos=new Array(tareas.length);
+  for(var nv=0;nv<=maxNivel;nv++){
+    var grupo=porNivel[nv]||[];
+    var totalH=grupo.length*(NODE_H+GAP_Y)-GAP_Y;
+    var startY=(SVG_H-totalH)/2;
+    grupo.forEach(function(idx,gi){
+      pos[idx]={
+        x:GAP_X+nv*(NODE_W+GAP_X),
+        y:startY+gi*(NODE_H+GAP_Y)
+      };
+    });
+  }
+
+  // Colores por estado
+  var colMap={
+    'OK':'#2e7d32','Atrasado':'#c62828',
+    'Pendiente confirmacion':'#6a1b9a',
+    'En curso':'#1565C0','Cancelado':'#555'
+  };
+  var colBorderMap={
+    'OK':'#66bb6a','Atrasado':'#ef5350',
+    'Pendiente confirmacion':'#ce93d8',
+    'En curso':'#4fc3f7','Cancelado':'#888'
+  };
+  var tipoDep={FI:'Fin→Inicio',II:'Inicio→Inicio',FF:'Fin→Fin',IF:'Inicio→Fin'};
+  var colorDep={FI:'#ef5350',II:'#4fc3f7',FF:'#66bb6a',IF:'#ffb74d'};
+
+  // SVG
+  var svg='<svg width="'+SVG_W+'" height="'+SVG_H+'" viewBox="0 0 '+SVG_W+' '+SVG_H+'" xmlns="http://www.w3.org/2000/svg" style="background:#111;border-radius:8px;display:block;max-width:100%">';
+
+  // Definir markers (flechas) por tipo
+  svg+='<defs>';
+  Object.keys(colorDep).forEach(function(tipo){
+    svg+='<marker id="arr-'+tipo+'" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">'+
+      '<path d="M0,0 L8,3 L0,6 Z" fill="'+colorDep[tipo]+'"/>'+
+    '</marker>';
+  });
+  svg+='</defs>';
+
+  // Flechas de dependencias
+  tareas.forEach(function(t,ti){
+    (t.deps||[]).forEach(function(dep){
+      if(dep.tareaIdx>=tareas.length) return;
+      var from=pos[dep.tareaIdx];
+      var to=pos[ti];
+      var col=colorDep[dep.tipo]||'#aaa';
+      // Punto de salida (derecha del nodo origen) y entrada (izquierda del destino)
+      var x1=from.x+NODE_W;
+      var y1=from.y+NODE_H/2;
+      var x2=to.x;
+      var y2=to.y+NODE_H/2;
+      var cx=(x1+x2)/2;
+      // Bezier
+      svg+='<path d="M'+x1+','+y1+' C'+cx+','+y1+' '+cx+','+y2+' '+x2+','+y2+'" '+
+        'stroke="'+col+'" stroke-width="2" fill="none" marker-end="url(#arr-'+dep.tipo+')" opacity="0.8"/>'+
+      '<text x="'+cx+'" y="'+(Math.min(y1,y2)-5)+'" text-anchor="middle" font-size="9" fill="'+col+'" font-family="monospace">'+dep.tipo+'</text>';
+    });
+  });
+
+  // Nodos
+  tareas.forEach(function(t,ti){
+    var estado=tareaEstadoCached(t);
+    var bg=colMap[estado]||'#222';
+    var border=colBorderMap[estado]||'#444';
+    var p2=pos[ti];
+    var label=t.desc.length>22?t.desc.slice(0,22)+'…':t.desc;
+    var opAsig=t.operario?(DB.operarios||[]).find(function(o){return o.id===t.operario;}):null;
+    var peso=parseFloat(t.peso)||0;
+    var avR=parseFloat(t.avanceReal)||0;
+
+    svg+='<g>'+
+      '<rect x="'+p2.x+'" y="'+p2.y+'" width="'+NODE_W+'" height="'+NODE_H+'" rx="6" fill="'+bg+'" stroke="'+border+'" stroke-width="1.5"/>'+
+      // Nombre
+      '<text x="'+(p2.x+8)+'" y="'+(p2.y+16)+'" font-size="11" font-weight="bold" fill="#fff" font-family="Segoe UI,Arial">'+label+'</text>'+
+      // Estado
+      '<text x="'+(p2.x+8)+'" y="'+(p2.y+28)+'" font-size="9" fill="'+border+'" font-family="Segoe UI,Arial">'+estado+'</text>'+
+      // Operario y peso/avance
+      '<text x="'+(p2.x+8)+'" y="'+(p2.y+40)+'" font-size="9" fill="#666" font-family="Segoe UI,Arial">'+(opAsig?opAsig.nombre.slice(0,14):'--')+(peso?'  '+avR+'%/'+peso+'%':'')+'</text>'+
+      // Barra avance
+      (peso>0?
+        '<rect x="'+(p2.x+8)+'" y="'+(p2.y+NODE_H-7)+'" width="'+(NODE_W-16)+'" height="4" rx="2" fill="#333"/>'+
+        '<rect x="'+(p2.x+8)+'" y="'+(p2.y+NODE_H-7)+'" width="'+Math.round((NODE_W-16)*avR/100)+'" height="4" rx="2" fill="'+border+'"/>':'')+''+
+    '</g>';
+  });
+
+  svg+='</svg>';
+
+  // Leyenda
+  var leyenda='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:11px">'+
+    Object.keys(colorDep).map(function(tipo){
+      return '<div style="display:flex;align-items:center;gap:4px">'+
+        '<div style="width:20px;height:2px;background:'+colorDep[tipo]+'"></div>'+
+        '<span style="color:'+colorDep[tipo]+'">'+tipo+'</span>'+
+        '<span style="color:var(--text3)">'+tipoDep[tipo]+'</span>'+
+      '</div>';
+    }).join('')+
+    Object.keys(colBorderMap).map(function(est){
+      return '<div style="display:flex;align-items:center;gap:4px">'+
+        '<div style="width:10px;height:10px;border-radius:2px;background:'+colMap[est]+';border:1px solid '+colBorderMap[est]+'"></div>'+
+        '<span style="color:'+colBorderMap[est]+'">'+est+'</span>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+
+  var html=leyenda+'<div style="overflow-x:auto">'+svg+'</div>'+
+    (tareas.every(function(t){return !(t.deps&&t.deps.length);})?
+      '<div style="font-size:11px;color:var(--text2);margin-top:10px;text-align:center">Sin dependencias definidas. Editá las tareas para agregar dependencias.</div>':'');
+
+  openModal('🕸 Red de tareas — '+p.numero, html, null, true);
+}
+
+
 function renderDashProy(){
   var el=document.getElementById('dashproy-body');
   if(!el) return;
