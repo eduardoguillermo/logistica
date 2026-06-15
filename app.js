@@ -4066,19 +4066,19 @@ function renderDashboard(){
 
       h += '<div class="card" style="background:'+semBg+'">'+
         // CH igual que operarios
-        '<div class="ch">'+
-          '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div class="ch" style="gap:8px;overflow:hidden">'+
+          '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden">'+
             '<div style="width:36px;height:36px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;flex-shrink:0">'+
               (p.numero||'').slice(-2)+
             '</div>'+
-            '<div style="flex:1;min-width:0">'+
-              '<div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.nombre+'</div>'+
+            '<div style="min-width:0;flex:1">'+
+              '<div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.nombre.slice(0,35)+(p.nombre.length>35?'...':'')+'</div>'+
               '<div style="font-size:11px;color:var(--text2);margin-top:2px">'+p.numero+(p.prioridad?' &middot; '+p.prioridad:'')+'</div>'+
             '</div>'+
           '</div>'+
-          '<div style="display:flex;gap:4px;align-items:center">'+
+          '<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0">'+
             proyEstadoPill(p.estado)+
-            '<span style="color:'+semColor+';font-size:10px;font-weight:700">'+semLabel+'</span>'+
+            '<span style="color:'+semColor+';font-size:10px;font-weight:700;white-space:nowrap">'+semLabel+'</span>'+
           '</div>'+
         '</div>'+
         // BODY
