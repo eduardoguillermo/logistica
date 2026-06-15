@@ -317,13 +317,18 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
   </div>
 
   <div class="card">
-    <h3>Depósitos transitorios</h3>
-    <p>Proyectos en Planificado con materiales reservados. Muestra ítems, valor y si hay OC pendiente por faltante.</p>
+    <h3>📦 Depósitos transitorios <span style="font-size:11px;color:var(--text2)">(colapsable)</span></h3>
+    <p>Proyectos en Planificado con materiales reservados. Clickeá el stat púrpura o el header del panel para expandirlo. Muestra ítems reservados, valor y OC vinculadas.</p>
   </div>
 
   <div class="card">
-    <h3>Entregas parciales</h3>
-    <p>Proyectos aprobados donde algún material está pendiente de recibir vía OC. Muestra la OC vinculada y permite cambiar su estado directamente.</p>
+    <h3>🛒 OC pendientes <span style="font-size:11px;color:var(--text2)">(colapsable, siempre visible)</span></h3>
+    <p>Panel colapsable que muestra todas las órdenes de compra pendientes (normales y de reserva). Clickeá el stat azul o el header para expandirlo. Incluye proveedor, tipo, proyecto vinculado, estado con color y total $. Permite cambiar el estado directo desde el dashboard.</p>
+  </div>
+
+  <div class="card">
+    <h3>📬 Entregas parciales <span style="font-size:11px;color:var(--text2)">(colapsable)</span></h3>
+    <p>Proyectos En curso con material pendiente de recibir vía OC. Muestra materiales entregados vs pendientes y las OC vinculadas con botón de cambio de estado.</p>
   </div>
 
   <div class="card">
@@ -364,8 +369,10 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
     <div class="step"><div class="step-n">4</div><div class="step-body"><strong>Se abre la ficha</strong>El proyecto queda en estado Planificado y se abre directamente para agregar materiales y tareas.</div></div>
   </div>
 
-  <h2>Ficha del proyecto</h2>
-  <p>La ficha tiene una <strong>barra de acciones sticky</strong> (fija al hacer scroll) con los botones disponibles según el estado actual:</p>
+  <h2>Ficha del proyecto — vista landscape</h2>
+  <p>Al clickear "Ver" en un proyecto, la lista desaparece y aparece la <strong>ficha en modo drill-down</strong> usando todo el ancho del panel. En la parte superior hay un breadcrumb para volver:</p>
+  <div class="card" style="font-family:monospace;font-size:12px;color:var(--text2)">← Proyectos › PRY-001 › Nombre del proyecto [Estado]</div>
+  <p style="margin-top:10px">La ficha tiene una <strong>barra de acciones sticky</strong> (fija al hacer scroll) con los botones disponibles según el estado actual:</p>
   <table>
     <thead><tr><th>Estado</th><th>Botones disponibles</th></tr></thead>
     <tbody>
@@ -482,6 +489,21 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
   <p>Las dependencias se muestran como badges debajo del nombre de la tarea: <span style="background:#0a2a0a;color:#66bb6a;padding:1px 6px;border-radius:4px;font-size:11px">verde = cumplida</span> <span style="background:#3a0000;color:#ef5350;padding:1px 6px;border-radius:4px;font-size:11px">rojo = bloqueante</span></p>
 
   <div class="warn">Si intentás marcar OK una tarea con dependencias bloqueantes, el sistema muestra cuáles son y no permite avanzar.</div>
+
+  <h2>Diagrama de red de tareas</h2>
+  <p>El botón <strong>🕸 Red</strong> en la barra sticky de la ficha del proyecto abre un modal con el diagrama SVG de red de tareas y dependencias.</p>
+  <table>
+    <thead><tr><th>Elemento</th><th>Significado</th></tr></thead>
+    <tbody>
+      <tr><td>Nodos</td><td>Una caja por tarea, coloreada según estado (azul=En curso, rojo=Atrasado, púrpura=Pend. confirm., verde=OK)</td></tr>
+      <tr><td>Flechas rojas</td><td>Dependencia FI (Fin→Inicio)</td></tr>
+      <tr><td>Flechas azules</td><td>Dependencia II (Inicio→Inicio)</td></tr>
+      <tr><td>Flechas verdes</td><td>Dependencia FF (Fin→Fin)</td></tr>
+      <tr><td>Flechas naranjas</td><td>Dependencia IF (Inicio→Fin)</td></tr>
+      <tr><td>Barra inferior del nodo</td><td>Barra de avance real %</td></tr>
+    </tbody>
+  </table>
+  <p>Los nodos se organizan en columnas según el nivel de dependencia (topological sort). Sin dependencias los nodos aparecen todos en la misma columna.</p>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════ -->
@@ -556,6 +578,17 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
     <li>Para SPI y PV: el proyecto debe tener <strong>fechas de inicio y fin</strong></li>
     <li>Para CPI: debe haber <strong>costo real</strong> (materiales entregados o tareas OK con MO)</li>
   </ul>
+
+  <h2>Historial de cambios de presupuesto</h2>
+  <p>Al editar el presupuesto con el botón 💰, el sistema pide una <strong>causa obligatoria</strong>. Cada cambio queda registrado con:</p>
+  <ul style="margin:8px 0 12px 20px;line-height:2">
+    <li>Fecha del cambio</li>
+    <li>Valor anterior (tachado)</li>
+    <li>Valor nuevo con flecha ▲ (aumento) o ▼ (reducción)</li>
+    <li>Causa del cambio (ej: "Ampliación de alcance", "Ajuste por inflación")</li>
+  </ul>
+  <p>El historial es visible en el modal de edición de presupuesto y como tabla en la ficha del proyecto.</p>
+  <div class="tip">El historial de presupuesto también queda registrado en el historial general del proyecto con el formato: <em>Presupuesto: $X → $Y (causa)</em></div>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════ -->
@@ -626,6 +659,7 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
 
   <h2>Stock actual</h2>
   <p>Muestra el inventario en tiempo real. La columna <strong>Valor total</strong> = cantidad × costo unitario. Clickeá cualquier encabezado para ordenar.</p>
+  <p>El botón <strong>⚠️ Solo críticos</strong> en la barra de filtros muestra únicamente los componentes con stock igual o menor al mínimo configurado. Se activa automáticamente al clickear el stat "Stock crítico" del dashboard.</p>
   <div class="info">El stock crítico se calcula sobre el stock físico total (incluyendo material reservado en proyectos planificados). La columna <em>En reserva</em> en el panel del dashboard muestra lo comprometido.</div>
 
   <h2>Catálogo de componentes</h2>
