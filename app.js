@@ -4686,8 +4686,8 @@ function renderDashboard(){
     (tareasVencidas.length?'<div class="stat" style="cursor:pointer;border-color:#7f0000" onclick="goTo(\'proyectos\')"><div class="stat-n red">'+tareasVencidas.length+'</div><div class="stat-l">Tareas vencidas</div></div>':'')+
     '<div class="stat" style="cursor:pointer" onclick="irAStockCritico()"><div class="stat-n '+(stockCritico.length>0?'red':'green')+'">'+stockCritico.length+'</div><div class="stat-l">Stock critico</div></div>'+
     '<div class="stat" style="cursor:pointer;border-color:#1565C0" onclick="togglePanel(\'dash-oc-pend\')"><div class="stat-n" style="color:#4fc3f7">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>'+
-    (depositosTransitorios.length?'<div class="stat" style="cursor:pointer;border-color:#6a1b9a" onclick="togglePanel(\'dash-dep-trans\')" ><div class="stat-n" style="color:#ce93d8">'+depositosTransitorios.length+'</div><div class="stat-l">Dep. transitorios</div></div>':'')+
-    (entregasParciales.length?'<div class="stat" style="cursor:pointer;border-color:#E65100" onclick="togglePanel(\'dash-ent-parc\')"><div class="stat-n" style="color:#ffa726">'+entregasParciales.length+'</div><div class="stat-l">Entregas parciales</div></div>':'')+
+    '<div class="stat" style="cursor:pointer;border-color:#6a1b9a" onclick="togglePanel(\'dash-dep-trans\')"><div class="stat-n" style="color:#ce93d8">'+depositosTransitorios.length+'</div><div class="stat-l">Dep. transitorios</div></div>'+
+    '<div class="stat" style="cursor:pointer;border-color:#E65100" onclick="togglePanel(\'dash-ent-parc\')"><div class="stat-n" style="color:#ffa726">'+entregasParciales.length+'</div><div class="stat-l">Entregas parciales</div></div>'+
     '<div class="stat"><div class="stat-n">'+DB.componentes.length+'</div><div class="stat-l">Componentes</div></div>'+
   '</div>';
 
@@ -4773,13 +4773,15 @@ function renderDashboard(){
 
   // Panel depositos transitorios
   // Panel depósitos transitorios — colapsable
-  if(depositosTransitorios.length){
-    h += '<div class="card" style="margin-top:14px;border-color:#6a1b9a">'+
+  h += '<div class="card" style="margin-top:14px;border-color:#6a1b9a">';
       '<div class="ch" style="border-color:#6a1b9a;cursor:pointer" onclick="togglePanel(\'dash-dep-trans\')">'+
         '<div class="ct" style="color:#ce93d8">📦 Depósitos transitorios ('+depositosTransitorios.length+')</div>'+
         '<span id="dash-dep-trans-ico" style="color:#ce93d8;font-size:14px">▼</span>'+
       '</div>'+
       '<div id="dash-dep-trans" style="display:none"><div class="card-body">';
+    if(!depositosTransitorios.length){
+      h += '<div class="card-body"><div class="empty">Sin depósitos transitorios.</div></div>';
+    } else {
     depositosTransitorios.forEach(function(p,idx){
       var itemsReservados=(p.materiales||[]).filter(function(m){return m.reservado;});
       var valorReserva=itemsReservados.reduce(function(a,m){
@@ -4815,8 +4817,8 @@ function renderDashboard(){
           '</div>':'')+
       '</div>';
     });
-    h += '</div></div></div>';
-  }
+    }
+  h += '</div></div></div>';
 
   // Panel OC pendientes — colapsable
   var todasOCPend=(DB.ordenes||[]).filter(function(o){return o.estado==='Pendiente'||o.estado==='Enviada'||o.estado==='Pendiente de compra'||o.estado==='Pendiente de entrega';});
