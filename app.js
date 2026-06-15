@@ -4659,7 +4659,7 @@ function renderDashboard(){
     (tareasVencidas.length?'<div class="stat" style="cursor:pointer;border-color:#7f0000" onclick="goTo(\'proyectos\')"><div class="stat-n red">'+tareasVencidas.length+'</div><div class="stat-l">Tareas vencidas</div></div>':'')+
     '<div class="stat" style="cursor:pointer" onclick="irAStockCritico()"><div class="stat-n '+(stockCritico.length>0?'red':'green')+'">'+stockCritico.length+'</div><div class="stat-l">Stock critico</div></div>'+
     '<div class="stat" style="cursor:pointer" onclick="goTo(\'ordenes\')"><div class="stat-n">'+ocPendientes.length+'</div><div class="stat-l">OC pendientes</div></div>'+
-    (depositosTransitorios.length?'<div class="stat" style="cursor:pointer;border-color:#6a1b9a" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#ce93d8">'+depositosTransitorios.length+'</div><div class="stat-l">Dep. transitorios</div></div>':'')+
+    (depositosTransitorios.length?'<div class="stat" style="cursor:pointer;border-color:#6a1b9a" onclick="document.getElementById(\'panel-dep-transitorios\')&&document.getElementById(\'panel-dep-transitorios\').scrollIntoView({behavior:\'smooth\'})" ><div class="stat-n" style="color:#ce93d8">'+depositosTransitorios.length+'</div><div class="stat-l">Dep. transitorios</div></div>':'')+
     (entregasParciales.length?'<div class="stat" style="cursor:pointer;border-color:#E65100" onclick="goTo(\'proyectos\')"><div class="stat-n" style="color:#ffa726">'+entregasParciales.length+'</div><div class="stat-l">Entregas parciales</div></div>':'')+
     '<div class="stat"><div class="stat-n">'+DB.componentes.length+'</div><div class="stat-l">Componentes</div></div>'+
   '</div>';
@@ -4747,7 +4747,7 @@ function renderDashboard(){
   // Panel depositos transitorios
   if(depositosTransitorios.length){
     h += '<div class="card" style="margin-top:14px;border-color:#6a1b9a">'+
-      '<div class="ch" style="border-color:#6a1b9a"><div class="ct" style="color:#ce93d8">Depositos transitorios</div><button class="btn btn-sm" onclick="goTo(\'proyectos\')">Ver proyectos</button></div>'+
+      '<div class="ch" style="border-color:#6a1b9a"><div class="ct" style="color:#ce93d8">Depositos transitorios</div></div>'+
       '<div class="card-body">';
     depositosTransitorios.forEach(function(p,idx){
       var itemsReservados=(p.materiales||[]).filter(function(m){return m.reservado;});
