@@ -4026,7 +4026,7 @@ function renderDashboard(){
 
   // Control de proyectos
   var hoy2=today();
-  var proyControl=(DB.proyectos||[]).filter(function(p){return p.estado==='En curso'||p.estado==='Pausado';});
+  var proyControl=(DB.proyectos||[]).filter(function(p){return p.estado==='En curso'||p.estado==='Pausado'||p.estado==='Planificado';});
 
   h += '<div class="card" style="margin-top:14px">'+
     '<div class="ch"><div class="ct">Control de proyectos</div><button class="btn btn-sm" onclick="goTo(\'proyectos\')">Ver todos</button></div>'+
