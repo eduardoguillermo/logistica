@@ -44,9 +44,14 @@ if(!DB.proyectos) DB.proyectos=[];
 if(!DB.proyNid) DB.proyNid=1;
 if(!DB.movimientosArchivados) DB.movimientosArchivados=[];
 if(!DB.operarios) DB.operarios=[];
+// Hash SHA-256 para contraseñas
+async function hashPass(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 if(!DB.config.usuarios) DB.config.usuarios=[
-  {nombre:'admin',password:'admin123',rol:'Administrador'},
-  {nombre:'operador',password:'op123',rol:'Operador'}
+  {nombre:'admin',password:'240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9',rol:'Administrador'},
+  {nombre:'operador',password:'6a3ef924cb19135103c1e5697a04a926209911a8cd45734773fac25454e691a0',rol:'Operador'}
 ];
 if(DB.config.loginDeshabilitado===undefined) DB.config.loginDeshabilitado=false;
 
@@ -133,19 +138,21 @@ function intentarLogin(){
   var pass=(document.getElementById('login-pass')?document.getElementById('login-pass').value:'');
   var errEl=document.getElementById('login-error');
   if(!user||!pass){if(errEl)errEl.textContent='Ingresa usuario y contraseña.';return;}
-  var found=(DB.config.usuarios||[]).find(function(u){return u.nombre===user&&u.password===pass;});
-  if(!found){
-    if(errEl)errEl.textContent='Usuario o contraseña incorrectos.';
-    var loginPass=document.getElementById('login-pass');
-    if(loginPass){loginPass.value='';loginPass.focus();}
-    var loginBox=document.getElementById('login-box');
-    if(loginBox){loginBox.style.animation='none';void loginBox.offsetWidth;loginBox.style.animation='shake .4s ease';}
-    return;
-  }
-  _usuarioActual={nombre:found.nombre,rol:found.rol};
-  var loginScreen=document.getElementById('login-screen');
-  if(loginScreen) loginScreen.classList.add('hidden');
-  _iniciarApp();
+  hashPass(pass).then(function(hashed){
+    var found=(DB.config.usuarios||[]).find(function(u){return u.nombre===user&&u.password===hashed;});
+    if(!found){
+      if(errEl)errEl.textContent='Usuario o contraseña incorrectos.';
+      var loginPass=document.getElementById('login-pass');
+      if(loginPass){loginPass.value='';loginPass.focus();}
+      var loginBox=document.getElementById('login-box');
+      if(loginBox){loginBox.style.animation='none';void loginBox.offsetWidth;loginBox.style.animation='shake .4s ease';}
+      return;
+    }
+    _usuarioActual={nombre:found.nombre,rol:found.rol};
+    var loginScreen=document.getElementById('login-screen');
+    if(loginScreen) loginScreen.classList.add('hidden');
+    _iniciarApp();
+  });
 }
 
 var _appYaIniciada = false;
@@ -4312,10 +4319,14 @@ function editarUsuario(idx){
     function(){
       var pass=document.getElementById('eu-pass').value;
       var rol=document.getElementById('eu-rol').value;
-      if(pass) u.password=pass;
       u.rol=rol;
       u.operarioId=parseInt(document.getElementById('eu-operario')?document.getElementById('eu-operario').value:0)||null;
-      save();renderConfig();return true;
+      if(pass){
+        hashPass(pass).then(function(hashed){ u.password=hashed; save(); renderConfig(); });
+      } else {
+        save(); renderConfig();
+      }
+      return true;
     });
 }
 
