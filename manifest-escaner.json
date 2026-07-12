@@ -1,0 +1,21 @@
+{
+  "name": "VSS Logística — Escaner",
+  "short_name": "Escaner VSS",
+  "start_url": "/logistica/escaner.html",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#B71C1C",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
