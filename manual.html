@@ -148,6 +148,7 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
     <a onclick="goTo('oc')">🛒 Órdenes de compra</a>
     <a onclick="goTo('operarios')">👷 Operarios</a>
     <a onclick="goTo('stock')">🗃️ Stock y catálogo</a>
+    <a onclick="goTo('escaner')">📷 Escáner EAN y sync Drive</a>
     <a onclick="goTo('reportes')">📄 Reportes</a>
     <a onclick="goTo('config')">⚙️ Configuración</a>
     <a onclick="goTo('backup')">💾 Backup</a>
@@ -693,6 +694,42 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
 </section>
 
 <!-- ═══════════════════════════════════════════════════════ -->
+<section id="s-escaner">
+  <div class="breadcrumb">Administrador › <span>Escáner EAN y sync Drive</span></div>
+  <h1>Escáner EAN y sincronización con Drive</h1>
+  <span class="role-badge admin">👤 Administrador</span>
+
+  <h2>¿Qué es?</h2>
+  <p>Una página aparte, pensada para el celular, que permite escanear el código de barras (EAN) de un material y registrar Entradas o Salidas de stock al toque, sin pasar por el menú completo de la app.</p>
+  <div class="info">URL directa: <code>https://eduardoguillermo.github.io/logistica/escaner.html</code>. Se puede instalar como ícono aparte en la pantalla de inicio del celu (tiene su propio <code>manifest-escaner.json</code>).</div>
+
+  <h2>Flujo al escanear</h2>
+  <table>
+    <thead><tr><th>Caso</th><th>Qué pasa</th></tr></thead>
+    <tbody>
+      <tr><td>EAN ya vinculado a un material</td><td>Muestra nombre y stock actual. Botones <strong>Entrada</strong> / <strong>Salida</strong> (la Salida pide cantidad y <strong>Destino</strong> obligatorio)</td></tr>
+      <tr><td>EAN sin vincular</td><td><strong>Vincular existente</strong>: elegís de la lista de materiales y le asociás el código. <strong>Crear nuevo</strong>: pedís solo el nombre y una cantidad inicial — el resto de los datos (categoría, ubicación, costo, etc.) se completan después desde la PC</td></tr>
+    </tbody>
+  </table>
+  <div class="tip">Los movimientos que se originan en el escáner quedan marcados con la nota "Escaneo rápido" (o "Alta por escaneo" si es un material nuevo), visible en la columna Nota de Movimientos.</div>
+
+  <h2>Destinos de salida</h2>
+  <p>En <strong>Configuración → Destinos de salida</strong> hay que cargar al menos un destino para que el botón Salida del escáner funcione — es una lista libre editable, sin valores por defecto.</p>
+
+  <h2>Sincronización con Drive (Stock)</h2>
+  <p>Esta es una sincronización <strong>separada</strong> del botón "☁️ Drive" de Backup (ese sube un JSON completo de toda la app; esta otra solo mantiene sincronizados <strong>componentes y movimientos</strong> entre dispositivos, en una carpeta propia de Drive llamada <code>VSSLogisticaStock</code>).</p>
+  <table>
+    <thead><tr><th>Dónde</th><th>Qué hace</th></tr></thead>
+    <tbody>
+      <tr><td>App completa (PC) → Configuración</td><td>Botón <strong>Conectar Drive</strong> / <strong>Sincronizar ahora</strong>. Al abrir la app también sincroniza sola, y cada 45 segundos mientras esté abierta</td></tr>
+      <tr><td>Escáner (celu)</td><td>Botón <strong>☁️ Conectar Drive</strong>. Sincroniza sola al abrir y después de cada Entrada, Salida, Vínculo o Alta</td></tr>
+    </tbody>
+  </table>
+  <div class="warn">Solo sincroniza Stock (componentes y movimientos, más las listas de Destinos/Orígenes/Motivos). Proyectos, órdenes de compra, proveedores y operarios <strong>no</strong> se sincronizan por esta vía.</div>
+  <div class="tip">Al entrar a Stock, Catálogo o Movimientos en la PC, la app vuelve a sincronizar automáticamente — así ves enseguida lo que se cargó desde el celu.</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
 <section id="s-reportes">
   <div class="breadcrumb">Administrador › <span>Reportes</span></div>
   <h1>Reportes</h1>
@@ -756,8 +793,9 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
   <h2>Exportar backup</h2>
   <p>Botón <strong>⬇️ Exportar JSON</strong> — descarga todos los datos en un archivo JSON con fecha. Guardalo en un lugar seguro regularmente.</p>
 
-  <h2>Drive</h2>
-  <p>Botón <strong>☁️ Drive</strong> — sube el backup automáticamente a Google Drive (requiere estar logueado en Google en el mismo navegador).</p>
+  <h2>Drive (backup completo)</h2>
+  <p>Botón <strong>☁️ Drive</strong> — sube el backup completo (JSON de toda la app) a Google Drive (requiere estar logueado en Google en el mismo navegador).</p>
+  <div class="info">Esto es distinto de la sincronización de Stock en vivo entre celu y PC (ver <a onclick="goTo('escaner')" style="color:var(--primary);cursor:pointer">Escáner EAN y sync Drive</a>) — ese sync solo mueve componentes y movimientos, y es automático.</div>
 
   <h2>Importar backup</h2>
   <div class="warn">Importar un backup reemplaza TODOS los datos actuales. Usá solo para restaurar desde un backup conocido.</div>
