@@ -108,7 +108,79 @@ function tareaEstadoCached(t){
   _tareaEstadoCache[key] = v;
   return v;
 }
-function save(){ invalidarStockCache(); invalidarCompMap(); invalidarTareaEstadoCache(); localStorage.setItem(SKEY, JSON.stringify(DB)); }
+function save(){ invalidarStockCache(); invalidarCompMap(); invalidarTareaEstadoCache(); localStorage.setItem(SKEY, JSON.stringify(DB)); scheduleStockPush(); }
+
+// =======================================================
+// SYNC DE STOCK CON DRIVE (componentes + movimientos)
+// =======================================================
+function genId(){ return 'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+function mergeStockRemoto(db, remote){
+  if(!remote) return;
+  db.componentes = db.componentes || [];
+  db.movimientos = db.movimientos || [];
+  db.config = db.config || {};
+  var byId={}; db.componentes.forEach(function(c){byId[c.id]=c;});
+  (remote.componentes||[]).forEach(function(rc){
+    var local=byId[rc.id];
+    if(!local){ db.componentes.push(rc); byId[rc.id]=rc; }
+    else if((rc.lastModified||0) > (local.lastModified||0)){ Object.assign(local, rc); }
+  });
+  var movIds={}; db.movimientos.forEach(function(m){movIds[m.id]=true;});
+  (remote.movimientos||[]).forEach(function(rm){
+    if(!movIds[rm.id]){ db.movimientos.push(rm); movIds[rm.id]=true; }
+  });
+  ['destinosSalida','origenesEntrada','motivosSalida'].forEach(function(k){
+    var localArr=db.config[k]||[];
+    var remoteArr=(remote.config&&remote.config[k])||[];
+    remoteArr.forEach(function(v){ if(localArr.indexOf(v)===-1) localArr.push(v); });
+    db.config[k]=localArr;
+  });
+}
+
+function stockBackupPayload(db){
+  return {
+    componentes: db.componentes||[],
+    movimientos: db.movimientos||[],
+    config: {
+      destinosSalida: (db.config&&db.config.destinosSalida)||[],
+      origenesEntrada: (db.config&&db.config.origenesEntrada)||[],
+      motivosSalida: (db.config&&db.config.motivosSalida)||[]
+    },
+    updatedAt: Date.now()
+  };
+}
+
+var _stockPushTimer=null;
+function scheduleStockPush(){
+  if(typeof DriveSync==='undefined'||!DriveSync.conectado) return;
+  if(_stockPushTimer) clearTimeout(_stockPushTimer);
+  _stockPushTimer=setTimeout(function(){ DriveSync.subirBackup(stockBackupPayload(DB)); },1500);
+}
+
+async function syncStockDesdeDrive(mostrarAlert){
+  if(typeof DriveSync==='undefined'||!DriveSync.conectado){ if(mostrarAlert) alert('Drive no está conectado.'); return; }
+  try{
+    var remote=await DriveSync.bajarBackup();
+    mergeStockRemoto(DB, remote);
+    localStorage.setItem(SKEY, JSON.stringify(DB));
+    invalidarStockCache();invalidarCompMap();
+    await DriveSync.subirBackup(stockBackupPayload(DB));
+    renderStock();renderCatalogo();renderMovimientos();renderConfig();
+    if(mostrarAlert) alert('Stock sincronizado con Drive.');
+  }catch(e){
+    console.error('Error sync stock',e);
+    if(mostrarAlert) alert('Error al sincronizar: '+e.message);
+  }
+}
+
+function conectarDriveStock(){
+  DriveSync.init(function(){
+    syncStockDesdeDrive(false);
+    renderConfig();
+  });
+  DriveSync.conectar();
+}
 
 // =======================================================
 // HELPERS
@@ -122,7 +194,7 @@ function fbox(l,v,mono){ return '<div class="fbox"><div class="fl">'+l+'</div><d
 // =======================================================
 // NAV
 // =======================================================
-const PANELS = ['dashboard','stock','catalogo','movimientos','escaner','proyectos','dashproy','ordenes','proveedores','operarios','reportes','config','backup'];
+const PANELS = ['dashboard','stock','catalogo','movimientos','proyectos','dashproy','ordenes','proveedores','operarios','reportes','config','backup'];
 
 // ============================================================
 // CONTROL DE ACCESO
@@ -169,6 +241,10 @@ function _iniciarApp(){
   if(!_appYaIniciada){
     _appYaIniciada=true;
     goTo('dashboard');alertaTareasProximas();
+    if(typeof DriveSync!=='undefined'){
+      DriveSync.init(function(){ syncStockDesdeDrive(false); });
+      DriveSync.conectar();
+    }
   } else {
     goTo('dashboard');
   }
@@ -265,15 +341,13 @@ function goTo(p){
     var n = document.getElementById('nav-'+x);
     if(n) n.classList.toggle('on', x===p);
   });
-  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',escaner:'Escaner EAN',proyectos:'Proyectos',dashproy:'Dashboard de proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',operarios:'Operarios',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
+  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',dashproy:'Dashboard de proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',operarios:'Operarios',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
   document.getElementById('ptitle').textContent = titles[p]||p;
   var pa = document.getElementById('pacts'); pa.innerHTML = '';
   if(p!=='stock') _stockSoloCritico=false;
   if(p==='stock')       renderStock();
   if(p==='catalogo')    renderCatalogo();
   if(p==='movimientos') renderMovimientos();
-  if(p==='escaner')     renderEscaner();
-  if(p!=='escaner')     scDetenerCamara();
   if(p==='dashboard')   renderDashboard();
   if(p==='proyectos'){cerrarFichaProyecto();renderProyectos();}
   if(p==='ordenes')     renderOrdenes();
@@ -647,7 +721,7 @@ function modalComponente(id){
       if(!cod||!desc||!cat){alert('Codigo, descripcion y categoria son obligatorios.');return false;}
       var ean=document.getElementById('cp-ean').value.trim();
       if(c){
-        c.codigo=cod;c.desc=desc;c.categoria=cat;c.ean=ean;
+        c.codigo=cod;c.desc=desc;c.categoria=cat;c.ean=ean;c.lastModified=Date.now();
         c.unidad=document.getElementById('cp-uni').value;
         c.min=parseFloat(document.getElementById('cp-min').value)||0;
         var nuevoCosto=parseFloat(document.getElementById('cp-costo').value)||0;
@@ -673,7 +747,7 @@ function modalComponente(id){
         var newCosto=parseFloat(document.getElementById('cp-costo').value)||0;
         var newId=DB.nid++;
         DB.componentes.push({
-          id:newId,codigo:cod,desc:desc,categoria:cat,ean:ean,
+          id:newId,codigo:cod,desc:desc,categoria:cat,ean:ean,lastModified:Date.now(),
           unidad:document.getElementById('cp-uni').value,
           min:parseFloat(document.getElementById('cp-min').value)||0,
           costo:newCosto,precio:newCosto,
@@ -878,180 +952,6 @@ function modalMovimiento(tipo, preselCid){
       }
       DB.movimientos.push(mov);
       save();renderMovimientos();renderStock();return true;
-    });
-}
-
-// =======================================================
-// ESCANER (EAN)
-// =======================================================
-var _scEanActual=null;
-var _scStream=null;
-var _scDetector=null;
-
-function renderEscaner(){
-  var res=document.getElementById('sc-resultado');
-  if(res) res.innerHTML='';
-  var man=document.getElementById('sc-manual');
-  if(man) man.value='';
-  _scEanActual=null;
-}
-
-async function scIniciarCamara(){
-  var video=document.getElementById('sc-video');
-  try{
-    _scStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-    video.srcObject=_scStream;
-    video.style.display='block';
-    if('BarcodeDetector' in window){
-      _scDetector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
-      scLoopDeteccion();
-    } else {
-      alert('Este navegador no soporta lectura automatica de codigos. Usa el ingreso manual.');
-    }
-  }catch(err){
-    alert('No se pudo acceder a la camara: '+err.message);
-  }
-}
-
-function scDetenerCamara(){
-  if(_scStream){ _scStream.getTracks().forEach(function(t){t.stop();}); _scStream=null; }
-  var video=document.getElementById('sc-video');
-  if(video){ video.style.display='none'; video.srcObject=null; }
-}
-
-async function scLoopDeteccion(){
-  var video=document.getElementById('sc-video');
-  if(!_scStream||!video) return;
-  try{
-    var codes=await _scDetector.detect(video);
-    if(codes && codes.length){
-      scDetenerCamara();
-      scProcesarCodigo(codes[0].rawValue);
-      return;
-    }
-  }catch(e){}
-  requestAnimationFrame(scLoopDeteccion);
-}
-
-function scProcesarManual(){
-  var v=(document.getElementById('sc-manual').value||'').trim();
-  if(!v) return;
-  scProcesarCodigo(v);
-}
-
-function scProcesarCodigo(ean){
-  _scEanActual=ean;
-  var comp=DB.componentes.find(function(c){return c.ean===ean;});
-  var cont=document.getElementById('sc-resultado');
-  if(!cont) return;
-  if(comp){
-    var st=stockActual(comp.id);
-    cont.innerHTML=
-      '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">'+
-        '<div style="font-weight:700;font-size:13px">'+comp.desc+'</div>'+
-        '<div style="font-size:11px;color:var(--text2)">Stock actual: '+st+' '+comp.unidad+'</div>'+
-        '<div style="display:flex;gap:8px;margin-top:10px">'+
-          '<button class="btn btn-p" style="flex:1" onclick="scRegistrar(\'Entrada\')">Entrada</button>'+
-          '<button class="btn" style="flex:1" onclick="scRegistrar(\'Salida manual\')">Salida</button>'+
-        '</div>'+
-      '</div>';
-  } else {
-    cont.innerHTML=
-      '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">'+
-        '<div style="font-family:monospace;font-size:13px">'+ean+'</div>'+
-        '<div style="font-size:11px;color:var(--text2)">Sin vincular a ningun material</div>'+
-        '<div style="display:flex;gap:8px;margin-top:10px">'+
-          '<button class="btn" style="flex:1" onclick="scVincularExistente()">Vincular existente</button>'+
-          '<button class="btn btn-p" style="flex:1" onclick="scCrearNuevo()">Crear nuevo</button>'+
-        '</div>'+
-      '</div>';
-  }
-}
-
-function scRegistrar(tipo){
-  var comp=DB.componentes.find(function(c){return c.ean===_scEanActual;});
-  if(!comp) return;
-  var destOpts=(DB.config.destinosSalida||[]).map(function(d){return '<option value="'+d+'">'+d+'</option>';}).join('');
-  openModal((tipo==='Entrada'?'Entrada':'Salida')+' -- '+comp.desc,
-    '<div class="fg2">'+
-      '<div class="fg"><label>Cantidad *</label><input id="sc-mv-cant" type="number" min="1" value="1"></div>'+
-      (tipo!=='Entrada'?
-        '<div class="fg"><label>Destino *</label>'+
-          '<select id="sc-mv-destino" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
-            '<option value="">-- seleccionar --</option>'+destOpts+
-          '</select></div>'
-      :'')+
-    '</div>',
-    function(){
-      var cant=parseFloat(document.getElementById('sc-mv-cant').value)||0;
-      if(cant<=0){alert('Ingresa una cantidad valida.');return false;}
-      var destino='';
-      if(tipo!=='Entrada'){
-        destino=document.getElementById('sc-mv-destino').value;
-        if(!destino){alert('Selecciona el destino de la salida.');return false;}
-      }
-      var mov={id:DB.nid++,cid:comp.id,tipo:tipo,cant:cant,fecha:today()};
-      if(tipo==='Entrada'){
-        mov.precio=parseFloat(comp.costo)||0;
-        mov.origen='Compra';
-        mov.estadoMat='N';
-      } else {
-        mov.nota='Escaneo rapido';
-        mov.destino=destino;
-        mov.estadoMat='N';
-      }
-      DB.movimientos.push(mov);
-      save();renderStock();renderMovimientos();renderEscaner();
-      return true;
-    });
-}
-
-function scVincularExistente(){
-  var ean=_scEanActual;
-  var compOpts=[...DB.componentes].sort(function(a,b){return (a.desc||'').localeCompare(b.desc||'','es');}).map(function(c){
-    return '<option value="'+c.id+'">'+c.codigo+' -- '+c.desc+'</option>';
-  }).join('');
-  openModal('Vincular EAN a material existente',
-    '<div class="fg2">'+
-      '<div class="fg"><label>EAN</label><input value="'+ean+'" disabled></div>'+
-      '<div class="fg"><label>Material *</label>'+
-        '<select id="sc-vinc-cid" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
-          '<option value="">-- seleccionar --</option>'+compOpts+
-        '</select></div>'+
-    '</div>',
-    function(){
-      var cid=parseInt(document.getElementById('sc-vinc-cid').value);
-      if(!cid){alert('Selecciona un material.');return false;}
-      var comp=DB.componentes.find(function(c){return c.id===cid;});
-      if(!comp) return false;
-      comp.ean=ean;
-      save();renderEscaner();
-      return true;
-    });
-}
-
-function scCrearNuevo(){
-  var ean=_scEanActual;
-  openModal('Nuevo material -- EAN '+ean,
-    '<div class="fg2">'+
-      '<div class="fg full"><label>Nombre *</label><input id="sc-nuevo-nombre" placeholder="Ej: Cable UTP cat6"></div>'+
-      '<div class="fg"><label>Cantidad inicial</label><input id="sc-nuevo-cant" type="number" min="0" value="1"></div>'+
-    '</div>',
-    function(){
-      var nombre=(document.getElementById('sc-nuevo-nombre').value||'').trim();
-      if(!nombre){alert('Ingresa el nombre del material.');return false;}
-      var cant=parseFloat(document.getElementById('sc-nuevo-cant').value)||0;
-      var newId=DB.nid++;
-      DB.componentes.push({
-        id:newId,ean:ean,codigo:ean,desc:nombre,categoria:'',
-        unidad:'u',min:0,costo:0,precio:0,costo_usd:0,
-        area:'',proveedor:'',ubicacion:'',nroCajon:'',estadoMat:'N',notas:''
-      });
-      if(cant>0){
-        DB.movimientos.push({id:DB.nid++,cid:newId,tipo:'Entrada',cant:cant,fecha:today(),precio:0,origen:'Compra',estadoMat:'N',nota:'Alta por escaneo'});
-      }
-      save();renderCatalogo();renderStock();renderEscaner();
-      return true;
     });
 }
 
@@ -4384,6 +4284,19 @@ function renderConfig(){
       (cfg.destinosSalida||[]).map(function(d,i){return '<div style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px">'+d+'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0" onclick="eliminarDestino('+i+')">x</button></div>';}).join('')+
     '</div>'+
     '<div style="display:flex;gap:8px"><input id="nuevo-destino" placeholder="Nuevo destino..." style="flex:1"><button class="btn" onclick="agregarDestino()">+ Agregar</button></div>'+
+    '<hr class="div"><div class="sectitle" style="margin-bottom:10px">Sincronizacion de Stock (Drive)</div>'+
+    '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Sincroniza componentes y movimientos entre este dispositivo y el Escaner EAN del celular. No sincroniza proyectos, ordenes ni proveedores.</div>'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;background:var(--surface2);border-radius:var(--r);padding:10px 14px">'+
+      '<div style="flex:1">'+
+        '<div id="drive-status" style="font-size:12px;font-weight:700">'+(typeof DriveSync!=="undefined"&&DriveSync.conectado?"☁️ Conectado":"☁️ No conectado")+'</div>'+
+        '<div style="font-size:11px;color:var(--text2);margin-top:2px">Carpeta "VSSLogisticaStock" en tu Google Drive.</div>'+
+      '</div>'+
+      (typeof DriveSync!=="undefined"&&DriveSync.conectado?
+        '<button class="btn btn-sm" onclick="syncStockDesdeDrive(true)">🔄 Sincronizar ahora</button>'
+      :
+        '<button class="btn btn-sm" onclick="conectarDriveStock()">Conectar Drive</button>'
+      )+
+    '</div>'+
     // SECCION CONTROL DE ACCESO
     '<hr class="div"><div class="sectitle" style="margin-bottom:10px">Control de acceso</div>'+
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:var(--surface2);border-radius:var(--r);padding:10px 14px">'+
