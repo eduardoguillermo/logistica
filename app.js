@@ -244,6 +244,9 @@ function _iniciarApp(){
     if(typeof DriveSync!=='undefined'){
       DriveSync.init(function(){ syncStockDesdeDrive(false); });
       DriveSync.conectar();
+      setInterval(function(){
+        if(DriveSync.conectado) syncStockDesdeDrive(false);
+      },45000);
     }
   } else {
     goTo('dashboard');
@@ -346,6 +349,9 @@ function goTo(p){
   if(p==='stock')       renderStock();
   if(p==='catalogo')    renderCatalogo();
   if(p==='movimientos') renderMovimientos();
+  if((p==='stock'||p==='catalogo'||p==='movimientos') && typeof DriveSync!=='undefined' && DriveSync.conectado){
+    syncStockDesdeDrive(false);
+  }
   if(p==='dashboard')   renderDashboard();
   if(p==='proyectos'){cerrarFichaProyecto();renderProyectos();}
   if(p==='ordenes')     renderOrdenes();
