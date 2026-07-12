@@ -18,6 +18,7 @@ function defData(){
       tipoCambio: 1,
       motivosSalida: ['Merma / descarte','Uso interno / prototipo','Garantia cliente','Reposicion a cliente','Prueba de calidad','Devolucion a proveedor','Rotura / dano'],
       origenesEntrada: ['Compra','Devolucion','Otro'],
+      destinosSalida: [],
       razonesPausa: ['Espera material','Espera presupuesto','Espera MO']
     },
     proyectos: [],
@@ -39,6 +40,7 @@ if(!DB.proveedores)  DB.proveedores  = [];
 if(!DB.config)       DB.config       = defData().config;
 if(!DB.config.motivosSalida)  DB.config.motivosSalida  = defData().config.motivosSalida;
 if(!DB.config.origenesEntrada) DB.config.origenesEntrada = defData().config.origenesEntrada;
+if(!DB.config.destinosSalida) DB.config.destinosSalida = defData().config.destinosSalida;
 if(!DB.config.razonesPausa) DB.config.razonesPausa = defData().config.razonesPausa;
 if(!DB.proyectos) DB.proyectos=[];
 if(!DB.proyNid) DB.proyNid=1;
@@ -120,7 +122,7 @@ function fbox(l,v,mono){ return '<div class="fbox"><div class="fl">'+l+'</div><d
 // =======================================================
 // NAV
 // =======================================================
-const PANELS = ['dashboard','stock','catalogo','movimientos','proyectos','dashproy','ordenes','proveedores','operarios','reportes','config','backup'];
+const PANELS = ['dashboard','stock','catalogo','movimientos','escaner','proyectos','dashproy','ordenes','proveedores','operarios','reportes','config','backup'];
 
 // ============================================================
 // CONTROL DE ACCESO
@@ -262,13 +264,15 @@ function goTo(p){
     var n = document.getElementById('nav-'+x);
     if(n) n.classList.toggle('on', x===p);
   });
-  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',proyectos:'Proyectos',dashproy:'Dashboard de proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',operarios:'Operarios',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
+  var titles = {dashboard:'Dashboard',stock:'Stock actual',catalogo:'Catalogo',movimientos:'Movimientos de stock',escaner:'Escaner EAN',proyectos:'Proyectos',dashproy:'Dashboard de proyectos',ordenes:'Ordenes de compra',proveedores:'Proveedores',operarios:'Operarios',reportes:'Reportes',config:'Configuracion',backup:'Backup / Migrar'};
   document.getElementById('ptitle').textContent = titles[p]||p;
   var pa = document.getElementById('pacts'); pa.innerHTML = '';
   if(p!=='stock') _stockSoloCritico=false;
   if(p==='stock')       renderStock();
   if(p==='catalogo')    renderCatalogo();
   if(p==='movimientos') renderMovimientos();
+  if(p==='escaner')     renderEscaner();
+  if(p!=='escaner')     scDetenerCamara();
   if(p==='dashboard')   renderDashboard();
   if(p==='proyectos'){cerrarFichaProyecto();renderProyectos();}
   if(p==='ordenes')     renderOrdenes();
@@ -597,6 +601,7 @@ function modalComponente(id){
   openModal(c?'Editar componente':'Nuevo componente',
     '<div class="fg2">'+
       '<div class="fg"><label>Codigo *</label><input id="cp-cod" value="'+(c?c.codigo:'')+'" placeholder="Ej: ESP32-D0WD"></div>'+
+      '<div class="fg"><label>EAN</label><input id="cp-ean" value="'+(c?c.ean||'':'')+'" placeholder="Codigo de barras (opcional)"></div>'+
       '<div class="fg"><label>Descripcion *</label><input id="cp-desc" value="'+(c?c.desc:'')+'" placeholder="Descripcion del componente"></div>'+
       '<div class="fg"><label>Categoria *</label><input id="cp-cat" value="'+(c?c.categoria:'')+'" placeholder="Ej: Electronica" list="cats-list"><datalist id="cats-list">'+catOpts+'</datalist></div>'+
       '<div class="fg"><label>Unidad</label><select id="cp-uni" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)">'+
@@ -639,8 +644,9 @@ function modalComponente(id){
       var desc=document.getElementById('cp-desc').value.trim();
       var cat=document.getElementById('cp-cat').value.trim();
       if(!cod||!desc||!cat){alert('Codigo, descripcion y categoria son obligatorios.');return false;}
+      var ean=document.getElementById('cp-ean').value.trim();
       if(c){
-        c.codigo=cod;c.desc=desc;c.categoria=cat;
+        c.codigo=cod;c.desc=desc;c.categoria=cat;c.ean=ean;
         c.unidad=document.getElementById('cp-uni').value;
         c.min=parseFloat(document.getElementById('cp-min').value)||0;
         var nuevoCosto=parseFloat(document.getElementById('cp-costo').value)||0;
@@ -666,7 +672,7 @@ function modalComponente(id){
         var newCosto=parseFloat(document.getElementById('cp-costo').value)||0;
         var newId=DB.nid++;
         DB.componentes.push({
-          id:newId,codigo:cod,desc:desc,categoria:cat,
+          id:newId,codigo:cod,desc:desc,categoria:cat,ean:ean,
           unidad:document.getElementById('cp-uni').value,
           min:parseFloat(document.getElementById('cp-min').value)||0,
           costo:newCosto,precio:newCosto,
@@ -742,7 +748,7 @@ function renderMovimientos(){
 
   var tc=(DB.config&&DB.config.tipoCambio)||1;
   var tb=document.getElementById('tbody-mov');
-  if(!list.length){tb.innerHTML='<tr><td colspan="12" class="empty">Sin movimientos.</td></tr>';return;}
+  if(!list.length){tb.innerHTML='<tr><td colspan="13" class="empty">Sin movimientos.</td></tr>';return;}
   tb.innerHTML=list.map(function(m){
     var comp=DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{desc:'--',codigo:'--',unidad:''};
     var precioUSD=m.precio&&tc>0?'U$S '+(parseFloat(m.precio)/tc).toFixed(2):'--';
@@ -758,6 +764,7 @@ function renderMovimientos(){
       '<td>'+precioUSD+'</td>'+
       '<td>'+(m.ref||'--')+'</td>'+
       '<td style="font-size:11px">'+(m.nota||'--')+'</td>'+
+      '<td style="font-size:11px">'+(m.destino||'--')+'</td>'+
       '<td style="font-size:11px">'+(m.origen||'--')+'</td>'+
       '<td style="display:flex;gap:3px">'+
         '<button class="btn btn-sm" onclick="editarMovimiento('+m.id+')">Ed.</button>'+
@@ -870,6 +877,180 @@ function modalMovimiento(tipo, preselCid){
       }
       DB.movimientos.push(mov);
       save();renderMovimientos();renderStock();return true;
+    });
+}
+
+// =======================================================
+// ESCANER (EAN)
+// =======================================================
+var _scEanActual=null;
+var _scStream=null;
+var _scDetector=null;
+
+function renderEscaner(){
+  var res=document.getElementById('sc-resultado');
+  if(res) res.innerHTML='';
+  var man=document.getElementById('sc-manual');
+  if(man) man.value='';
+  _scEanActual=null;
+}
+
+async function scIniciarCamara(){
+  var video=document.getElementById('sc-video');
+  try{
+    _scStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject=_scStream;
+    video.style.display='block';
+    if('BarcodeDetector' in window){
+      _scDetector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
+      scLoopDeteccion();
+    } else {
+      alert('Este navegador no soporta lectura automatica de codigos. Usa el ingreso manual.');
+    }
+  }catch(err){
+    alert('No se pudo acceder a la camara: '+err.message);
+  }
+}
+
+function scDetenerCamara(){
+  if(_scStream){ _scStream.getTracks().forEach(function(t){t.stop();}); _scStream=null; }
+  var video=document.getElementById('sc-video');
+  if(video){ video.style.display='none'; video.srcObject=null; }
+}
+
+async function scLoopDeteccion(){
+  var video=document.getElementById('sc-video');
+  if(!_scStream||!video) return;
+  try{
+    var codes=await _scDetector.detect(video);
+    if(codes && codes.length){
+      scDetenerCamara();
+      scProcesarCodigo(codes[0].rawValue);
+      return;
+    }
+  }catch(e){}
+  requestAnimationFrame(scLoopDeteccion);
+}
+
+function scProcesarManual(){
+  var v=(document.getElementById('sc-manual').value||'').trim();
+  if(!v) return;
+  scProcesarCodigo(v);
+}
+
+function scProcesarCodigo(ean){
+  _scEanActual=ean;
+  var comp=DB.componentes.find(function(c){return c.ean===ean;});
+  var cont=document.getElementById('sc-resultado');
+  if(!cont) return;
+  if(comp){
+    var st=stockActual(comp.id);
+    cont.innerHTML=
+      '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">'+
+        '<div style="font-weight:700;font-size:13px">'+comp.desc+'</div>'+
+        '<div style="font-size:11px;color:var(--text2)">Stock actual: '+st+' '+comp.unidad+'</div>'+
+        '<div style="display:flex;gap:8px;margin-top:10px">'+
+          '<button class="btn btn-p" style="flex:1" onclick="scRegistrar(\'Entrada\')">Entrada</button>'+
+          '<button class="btn" style="flex:1" onclick="scRegistrar(\'Salida manual\')">Salida</button>'+
+        '</div>'+
+      '</div>';
+  } else {
+    cont.innerHTML=
+      '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px">'+
+        '<div style="font-family:monospace;font-size:13px">'+ean+'</div>'+
+        '<div style="font-size:11px;color:var(--text2)">Sin vincular a ningun material</div>'+
+        '<div style="display:flex;gap:8px;margin-top:10px">'+
+          '<button class="btn" style="flex:1" onclick="scVincularExistente()">Vincular existente</button>'+
+          '<button class="btn btn-p" style="flex:1" onclick="scCrearNuevo()">Crear nuevo</button>'+
+        '</div>'+
+      '</div>';
+  }
+}
+
+function scRegistrar(tipo){
+  var comp=DB.componentes.find(function(c){return c.ean===_scEanActual;});
+  if(!comp) return;
+  var destOpts=(DB.config.destinosSalida||[]).map(function(d){return '<option value="'+d+'">'+d+'</option>';}).join('');
+  openModal((tipo==='Entrada'?'Entrada':'Salida')+' -- '+comp.desc,
+    '<div class="fg2">'+
+      '<div class="fg"><label>Cantidad *</label><input id="sc-mv-cant" type="number" min="1" value="1"></div>'+
+      (tipo!=='Entrada'?
+        '<div class="fg"><label>Destino *</label>'+
+          '<select id="sc-mv-destino" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
+            '<option value="">-- seleccionar --</option>'+destOpts+
+          '</select></div>'
+      :'')+
+    '</div>',
+    function(){
+      var cant=parseFloat(document.getElementById('sc-mv-cant').value)||0;
+      if(cant<=0){alert('Ingresa una cantidad valida.');return false;}
+      var destino='';
+      if(tipo!=='Entrada'){
+        destino=document.getElementById('sc-mv-destino').value;
+        if(!destino){alert('Selecciona el destino de la salida.');return false;}
+      }
+      var mov={id:DB.nid++,cid:comp.id,tipo:tipo,cant:cant,fecha:today()};
+      if(tipo==='Entrada'){
+        mov.precio=parseFloat(comp.costo)||0;
+        mov.origen='Compra';
+        mov.estadoMat='N';
+      } else {
+        mov.nota='Escaneo rapido';
+        mov.destino=destino;
+        mov.estadoMat='N';
+      }
+      DB.movimientos.push(mov);
+      save();renderStock();renderMovimientos();renderEscaner();
+      return true;
+    });
+}
+
+function scVincularExistente(){
+  var ean=_scEanActual;
+  var compOpts=[...DB.componentes].sort(function(a,b){return (a.desc||'').localeCompare(b.desc||'','es');}).map(function(c){
+    return '<option value="'+c.id+'">'+c.codigo+' -- '+c.desc+'</option>';
+  }).join('');
+  openModal('Vincular EAN a material existente',
+    '<div class="fg2">'+
+      '<div class="fg"><label>EAN</label><input value="'+ean+'" disabled></div>'+
+      '<div class="fg"><label>Material *</label>'+
+        '<select id="sc-vinc-cid" style="padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;width:100%;background:var(--surface2);color:var(--text)">'+
+          '<option value="">-- seleccionar --</option>'+compOpts+
+        '</select></div>'+
+    '</div>',
+    function(){
+      var cid=parseInt(document.getElementById('sc-vinc-cid').value);
+      if(!cid){alert('Selecciona un material.');return false;}
+      var comp=DB.componentes.find(function(c){return c.id===cid;});
+      if(!comp) return false;
+      comp.ean=ean;
+      save();renderEscaner();
+      return true;
+    });
+}
+
+function scCrearNuevo(){
+  var ean=_scEanActual;
+  openModal('Nuevo material -- EAN '+ean,
+    '<div class="fg2">'+
+      '<div class="fg full"><label>Nombre *</label><input id="sc-nuevo-nombre" placeholder="Ej: Cable UTP cat6"></div>'+
+      '<div class="fg"><label>Cantidad inicial</label><input id="sc-nuevo-cant" type="number" min="0" value="1"></div>'+
+    '</div>',
+    function(){
+      var nombre=(document.getElementById('sc-nuevo-nombre').value||'').trim();
+      if(!nombre){alert('Ingresa el nombre del material.');return false;}
+      var cant=parseFloat(document.getElementById('sc-nuevo-cant').value)||0;
+      var newId=DB.nid++;
+      DB.componentes.push({
+        id:newId,ean:ean,codigo:ean,desc:nombre,categoria:'',
+        unidad:'u',min:0,costo:0,precio:0,costo_usd:0,
+        area:'',proveedor:'',ubicacion:'',nroCajon:'',estadoMat:'N',notas:''
+      });
+      if(cant>0){
+        DB.movimientos.push({id:DB.nid++,cid:newId,tipo:'Entrada',cant:cant,fecha:today(),precio:0,origen:'Compra',estadoMat:'N',nota:'Alta por escaneo'});
+      }
+      save();renderCatalogo();renderStock();renderEscaner();
+      return true;
     });
 }
 
@@ -4196,6 +4377,12 @@ function renderConfig(){
       (cfg.origenesEntrada||[]).map(function(o,i){return '<div style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px">'+o+'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0" onclick="eliminarOrigen('+i+')">x</button></div>';}).join('')+
     '</div>'+
     '<div style="display:flex;gap:8px"><input id="nuevo-origen" placeholder="Nuevo origen..." style="flex:1"><button class="btn" onclick="agregarOrigen()">+ Agregar</button></div>'+
+    '<hr class="div"><div class="sectitle" style="margin-bottom:10px">Destinos de salida</div>'+
+    '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Estos son los destinos disponibles al registrar una salida (por ejemplo desde el Escaner EAN).</div>'+
+    '<div id="destinos-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">'+
+      (cfg.destinosSalida||[]).map(function(d,i){return '<div style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px">'+d+'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0" onclick="eliminarDestino('+i+')">x</button></div>';}).join('')+
+    '</div>'+
+    '<div style="display:flex;gap:8px"><input id="nuevo-destino" placeholder="Nuevo destino..." style="flex:1"><button class="btn" onclick="agregarDestino()">+ Agregar</button></div>'+
     // SECCION CONTROL DE ACCESO
     '<hr class="div"><div class="sectitle" style="margin-bottom:10px">Control de acceso</div>'+
     '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;background:var(--surface2);border-radius:var(--r);padding:10px 14px">'+
@@ -4256,6 +4443,17 @@ function agregarOrigen(){
 function eliminarOrigen(i){
   if(!confirm('Eliminar este origen?')) return;
   DB.config.origenesEntrada.splice(i,1);save();renderConfig();
+}
+function agregarDestino(){
+  var inp=document.getElementById('nuevo-destino');var v=inp.value.trim();
+  if(!v) return;
+  if(!DB.config.destinosSalida) DB.config.destinosSalida=[];
+  if(DB.config.destinosSalida.indexOf(v)>=0){alert('Ya existe ese destino.');return;}
+  DB.config.destinosSalida.push(v);save();inp.value='';renderConfig();
+}
+function eliminarDestino(i){
+  if(!confirm('Eliminar este destino?')) return;
+  DB.config.destinosSalida.splice(i,1);save();renderConfig();
 }
 
 function toggleLogin(val){
