@@ -320,10 +320,8 @@ function requireAdmin(fn){
 })();
 
 // Arrancar: mostrar login o ir directo si está deshabilitado
-// BYPASS TEMPORAL DE RECUPERACION DE ACCESO -- sacar despues de que Guillermo entre y active el checkbox en Configuracion
 (function(){
-  var BYPASS_TEMPORAL=true;
-  if(BYPASS_TEMPORAL||DB.config.loginDeshabilitado){
+  if(DB.config.loginDeshabilitado){
     _usuarioActual={nombre:'dev',rol:'Administrador'};
     _iniciarApp();
   } else {
