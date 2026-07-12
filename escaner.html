@@ -123,7 +123,7 @@
 <script src="drive-sync.js"></script>
 <script>
 const SKEY = 'vss-log';
-const APP_VERSION = '1.1.1';
+const APP_VERSION = '1.1.2';
 document.getElementById('verLabel').textContent = 'v' + APP_VERSION;
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js'); }
 
@@ -298,7 +298,7 @@ function confirmarEntrada(){
   var comp = (db.componentes||[]).find(function(c){ return c.ean===eanActual; });
   if(!comp) return;
   db.movimientos = db.movimientos || [];
-  db.movimientos.push({ id:genId(), cid:comp.id, tipo:'Entrada', cant:cant, fecha:today(), precio:parseFloat(comp.costo)||0, origen:'Compra', estadoMat:'N' });
+  db.movimientos.push({ id:genId(), cid:comp.id, tipo:'Entrada', cant:cant, fecha:today(), precio:parseFloat(comp.costo)||0, origen:'Compra', estadoMat:'N', nota:'Escaneo rápido' });
   saveDB(db);
   document.getElementById('s3resumen').textContent = '➕ Entrada · ' + cant + ' ' + (comp.unidad||'u') + ' · ' + comp.desc;
   mostrar('s3');
