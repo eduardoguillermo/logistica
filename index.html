@@ -151,7 +151,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
     <a id="nav-stock" onclick="goTo('stock')">📊 Stock</a>
     <a id="nav-catalogo" onclick="goTo('catalogo')">🗂️ Catálogo</a>
     <a id="nav-movimientos" onclick="goTo('movimientos')">🔄 Movimientos</a>
-    <a id="nav-escaner" onclick="goTo('escaner')">📷 Escaner EAN</a>
+    <a href="escaner.html">📷 Escaner EAN</a>
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Compras</div>
@@ -291,22 +291,6 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
       </div></div>
     </div>
 
-    <!-- ESCANER -->
-    <div class="panel" id="panel-escaner">
-      <div style="max-width:420px;margin:0 auto">
-        <video id="sc-video" autoplay playsinline muted style="display:none;width:100%;border-radius:var(--r);margin-bottom:10px;background:#000"></video>
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <button class="btn btn-p" style="flex:1" onclick="scIniciarCamara()">📷 Escanear</button>
-          <button class="btn" onclick="scDetenerCamara()">Detener</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:14px">
-          <input id="sc-manual" placeholder="O ingresa el codigo manualmente" style="flex:1;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)" onkeydown="if(event.key==='Enter')scProcesarManual()">
-          <button class="btn" onclick="scProcesarManual()">Ir</button>
-        </div>
-        <div id="sc-resultado"></div>
-      </div>
-    </div>
-
     <!-- DASHBOARD -->
     <div class="panel on" id="panel-dashboard">
       <div id="dashboard-body"></div>
@@ -438,6 +422,8 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
 </div>
 <div id="mbox"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="drive-sync.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
