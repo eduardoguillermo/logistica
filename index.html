@@ -156,7 +156,7 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
     <div style="display:flex;gap:20px;align-items:center">
       <div style="font-family:monospace;font-size:12px;color:#555;letter-spacing:1px" id="splash-fecha"></div>
       <div style="width:1px;height:12px;background:#2e2e2e"></div>
-      <div style="font-family:monospace;font-size:12px;color:#555;letter-spacing:1px">v2.0.0</div>
+      <div style="font-family:monospace;font-size:12px;color:#555;letter-spacing:1px">v2.1.0</div>
     </div>
     <div style="width:180px;height:2px;background:#1a1a1a;border-radius:2px;overflow:hidden">
       <div id="splash-prog"></div>
@@ -200,6 +200,7 @@ function iniciarSplash(){
     <a id="nav-stock" onclick="goTo('stock')">📊 Stock</a>
     <a id="nav-catalogo" onclick="goTo('catalogo')">🗂️ Catálogo</a>
     <a id="nav-movimientos" onclick="goTo('movimientos')">🔄 Movimientos</a>
+    <a id="nav-escaner" onclick="goTo('escaner')">📷 Escaner EAN</a>
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Compras</div>
@@ -332,11 +333,27 @@ function iniciarSplash(){
           <thead><tr>
             <th>Fecha</th><th>Tipo</th><th>Código</th><th>Componente</th>
             <th>Cant.</th><th>Est.</th><th>Precio $</th><th>Precio U$S</th>
-            <th>Referencia</th><th>Nota</th><th>Origen</th><th></th>
+            <th>Referencia</th><th>Nota</th><th>Destino</th><th>Origen</th><th></th>
           </tr></thead>
           <tbody id="tbody-mov"></tbody>
         </table>
       </div></div>
+    </div>
+
+    <!-- ESCANER -->
+    <div class="panel" id="panel-escaner">
+      <div style="max-width:420px;margin:0 auto">
+        <video id="sc-video" autoplay playsinline muted style="display:none;width:100%;border-radius:var(--r);margin-bottom:10px;background:#000"></video>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button class="btn btn-p" style="flex:1" onclick="scIniciarCamara()">📷 Escanear</button>
+          <button class="btn" onclick="scDetenerCamara()">Detener</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input id="sc-manual" placeholder="O ingresa el codigo manualmente" style="flex:1;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r);font-size:12px;background:var(--surface2);color:var(--text)" onkeydown="if(event.key==='Enter')scProcesarManual()">
+          <button class="btn" onclick="scProcesarManual()">Ir</button>
+        </div>
+        <div id="sc-resultado"></div>
+      </div>
     </div>
 
     <!-- DASHBOARD -->
