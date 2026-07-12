@@ -165,11 +165,10 @@ function _iniciarApp(){
   if(navUser&&_usuarioActual) navUser.innerHTML='<strong style="color:var(--text)">'+_usuarioActual.nombre+'</strong><br><span style="color:'+(esAdmin()?'var(--primary)':'var(--amber)')+'">'+_usuarioActual.rol+'</span>';
   // Aplicar restricciones de nav para operador
   _aplicarRestriccionesNav();
-  // Splash e ir al dashboard
+  // Ir directo al dashboard (splash eliminado)
   if(!_appYaIniciada){
     _appYaIniciada=true;
-    if(typeof iniciarSplash==='function') iniciarSplash();
-    setTimeout(function(){goTo('dashboard');alertaTareasProximas();},7800);
+    goTo('dashboard');alertaTareasProximas();
   } else {
     goTo('dashboard');
   }
