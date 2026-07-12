@@ -123,7 +123,7 @@
 <script src="drive-sync.js"></script>
 <script>
 const SKEY = 'vss-log';
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 document.getElementById('verLabel').textContent = 'v' + APP_VERSION;
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js'); }
 
@@ -268,11 +268,15 @@ function mostrarFormEntrada(){
     '<button class="bigbtn add" onclick="confirmarEntrada()">Confirmar entrada</button>';
 }
 
-function mostrarFormSalida(){
-  var db = getDB();
-  var destinos = (db.config && db.config.destinosSalida) || [];
+async function mostrarFormSalida(){
   document.getElementById('s2acciones').style.display='none';
   document.getElementById('s2form').style.display='block';
+  if(typeof DriveSync!=='undefined' && DriveSync.conectado){
+    document.getElementById('s2form').innerHTML = '<div class="hint">Actualizando destinos...</div>';
+    await syncPull();
+  }
+  var db = getDB();
+  var destinos = (db.config && db.config.destinosSalida) || [];
   if(!destinos.length){
     document.getElementById('s2form').innerHTML =
       '<div class="st" style="color:var(--bad);margin-bottom:10px">No hay destinos cargados todavía. Andá a la app completa → Configuración → Destinos de salida para agregar al menos uno.</div>';
