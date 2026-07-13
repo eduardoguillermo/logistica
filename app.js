@@ -626,9 +626,9 @@ function renderCatalogo(){
       '<td>'+(c.proveedor||'--')+'</td>'+
       '<td style="text-align:center">'+(c.estadoMat==='R'?'<span class="pill p-a">R</span>':'<span class="pill p-g">N</span>')+'</td>'+
       '<td style="display:flex;gap:3px">'+
-        '<button class="btn btn-sm" onclick="modalComponente('+c.id+')">Editar</button>'+
-        '<button class="btn btn-sm" onclick="duplicarComponente('+c.id+')">Dupl.</button>'+
-        '<button class="btn btn-sm" style="color:var(--red)" onclick="eliminarComponente('+c.id+')">X</button>'+
+        '<button class="btn btn-sm" onclick="modalComponente(\''+c.id+'\')">Editar</button>'+
+        '<button class="btn btn-sm" onclick="duplicarComponente(\''+c.id+'\')">Dupl.</button>'+
+        '<button class="btn btn-sm" style="color:var(--red)" onclick="eliminarComponente(\''+c.id+'\')">X</button>'+
       '</td>'+
     '</tr>';
   }).join('');
@@ -673,7 +673,7 @@ function calcPreciosCompUSD(){
 
 function modalComponente(id){
   if(esOperador()){alert("Accion no permitida para Operador.");return;}
-  var c = id!=null ? DB.componentes.find(function(x){return x.id===id;}) : null;
+  var c = id!=null ? DB.componentes.find(function(x){return String(x.id)===String(id);}) : null;
   var cats=[...new Set(DB.componentes.map(function(x){return x.categoria;}))].filter(Boolean);
   var catOpts=cats.map(function(x){return '<option'+(c&&c.categoria===x?' selected':'')+'>'+x+'</option>';}).join('');
   var tc=(DB.config&&DB.config.tipoCambio)||1;
@@ -774,7 +774,7 @@ function modalComponente(id){
 }
 
 function duplicarComponente(id){
-  var c=DB.componentes.find(function(x){return x.id===id;});
+  var c=DB.componentes.find(function(x){return String(x.id)===String(id);});
   if(!c) return;
   var nuevo=Object.assign({},c,{id:DB.nid++,codigo:c.codigo+'-2',desc:'Copia de '+c.desc});
   DB.componentes.push(nuevo);
@@ -784,8 +784,8 @@ function duplicarComponente(id){
 function eliminarComponente(id){
   if(esOperador()){alert("Accion no permitida para Operador.");return;}
   if(!confirm('Eliminar este componente? Se perderan sus movimientos.')) return;
-  DB.componentes=DB.componentes.filter(function(x){return x.id!==id;});
-  DB.movimientos=DB.movimientos.filter(function(x){return x.cid!==id;});
+  DB.componentes=DB.componentes.filter(function(x){return String(x.id)!==String(id);});
+  DB.movimientos=DB.movimientos.filter(function(x){return String(x.cid)!==String(id);});
   save();renderCatalogo();renderStock();
 }
 
@@ -846,8 +846,8 @@ function renderMovimientos(){
       '<td style="font-size:11px">'+(m.destino||'--')+'</td>'+
       '<td style="font-size:11px">'+(m.origen||'--')+'</td>'+
       '<td style="display:flex;gap:3px">'+
-        '<button class="btn btn-sm" onclick="editarMovimiento('+m.id+')">Ed.</button>'+
-        '<button class="btn btn-sm" style="color:var(--red)" onclick="borrarMovimiento('+m.id+')">X</button>'+
+        '<button class="btn btn-sm" onclick="editarMovimiento(\''+m.id+'\')">Ed.</button>'+
+        '<button class="btn btn-sm" style="color:var(--red)" onclick="borrarMovimiento(\''+m.id+'\')">X</button>'+
       '</td>'+
     '</tr>';
   }).join('');
@@ -960,16 +960,16 @@ function modalMovimiento(tipo, preselCid){
 }
 
 function borrarMovimiento(id){
-  var m=DB.movimientos.find(function(x){return x.id===id;});
+  var m=DB.movimientos.find(function(x){return String(x.id)===String(id);});
   if(!m) return;
   var comp=DB.componentes.find(function(c){return c.id===(m.cid||m.compId);})||{};
   if(!confirm('Eliminar movimiento de '+m.tipo.toLowerCase()+' de "'+( comp.desc||'?')+'"?')) return;
-  DB.movimientos=DB.movimientos.filter(function(x){return x.id!==id;});
+  DB.movimientos=DB.movimientos.filter(function(x){return String(x.id)!==String(id);});
   save();renderMovimientos();renderStock();
 }
 
 function editarMovimiento(id){
-  var m=DB.movimientos.find(function(x){return x.id===id;});
+  var m=DB.movimientos.find(function(x){return String(x.id)===String(id);});
   if(!m) return;
   var comp=(compById(m.cid)||{desc:'?'});
   var tc=(DB.config&&DB.config.tipoCambio)||1;
