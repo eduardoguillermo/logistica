@@ -794,8 +794,8 @@ code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px
   <p>Botón <strong>⬇️ Exportar JSON</strong> — descarga todos los datos en un archivo JSON con fecha. Guardalo en un lugar seguro regularmente.</p>
 
   <h2>Drive (backup completo)</h2>
-  <p>Botón <strong>☁️ Drive</strong> — sube el backup completo (JSON de toda la app) a Google Drive (requiere estar logueado en Google en el mismo navegador).</p>
-  <div class="info">Esto es distinto de la sincronización de Stock en vivo entre celu y PC (ver <a onclick="goTo('escaner')" style="color:var(--primary);cursor:pointer">Escáner EAN y sync Drive</a>) — ese sync solo mueve componentes y movimientos, y es automático.</div>
+  <p>Botones <strong>☁️ Subir backup a Drive</strong> / <strong>☁️ Bajar backup de Drive</strong> — el backup completo (JSON de toda la app) sube a un archivo aparte (<code>vss-logistica-backup-completo.json</code>) dentro de la misma carpeta "VSSLogisticaStock". Usa la misma conexión que el sync de Stock — hay que conectarla primero en Configuración si todavía no se hizo.</p>
+  <div class="info">Esto es distinto de la sincronización de Stock en vivo entre celu y PC (ver <a onclick="goTo('escaner')" style="color:var(--primary);cursor:pointer">Escáner EAN y sync Drive</a>) — ese sync solo mueve componentes y movimientos, y es automático. El backup completo es manual: hay que tocar el botón cada vez.</div>
 
   <h2>Importar backup</h2>
   <div class="warn">Importar un backup reemplaza TODOS los datos actuales. Usá solo para restaurar desde un backup conocido.</div>
