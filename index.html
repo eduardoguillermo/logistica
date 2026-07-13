@@ -403,9 +403,11 @@ hr.div{border:none;border-top:1px solid var(--border);margin:12px 0}
       </div>
       <div class="card">
         <div class="ch"><div class="ct">💾 Exportar / Importar</div></div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:12px">El backup a Drive sube TODOS los datos (proyectos, stock, órdenes, proveedores, operarios, config) a un archivo separado en la misma carpeta "VSSLogisticaStock". Usa la conexión de Configuración → Sincronización de Stock — conectala ahí primero si no lo hiciste.</p>
         <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-p" onclick="exportarJSON()">⬇️ Exportar JSON</button>
-          <button class="btn" onclick="exportarADrive()">☁️ Drive</button>
+          <button class="btn" onclick="exportarADrive()">☁️ Subir backup a Drive</button>
+          <button class="btn" onclick="importarDeDrive()">☁️ Bajar backup de Drive</button>
           <button class="btn" onclick="exportarExcel()">📊 Exportar Excel</button>
           <label class="btn" style="cursor:pointer">📂 Importar JSON<input type="file" accept=".json" style="display:none" onchange="importarJSON(this)"></label>
         </div>
