@@ -185,9 +185,58 @@ const DriveSync = (() => {
     return resp.json();
   }
 
+  // ---------- Archivos con nombre propio (ej: backup completo aparte del de Stock) ----------
+  const _archivoIds = {};
+  const _archivoPromises = {};
+  async function ensureArchivo(nombre) {
+    if (_archivoIds[nombre]) return _archivoIds[nombre];
+    if (_archivoPromises[nombre]) return _archivoPromises[nombre];
+    _archivoPromises[nombre] = (async () => {
+      await ensureFolder();
+      const q = encodeURIComponent(`name='${nombre}' and '${folderId}' in parents and trashed=false`);
+      const resp = await api(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`);
+      const data = await resp.json();
+      if (data.files && data.files.length) { _archivoIds[nombre] = data.files[0].id; return _archivoIds[nombre]; }
+      _archivoIds[nombre] = await subirJSONNombrado(nombre, {}, true);
+      return _archivoIds[nombre];
+    })();
+    try { return await _archivoPromises[nombre]; } finally { delete _archivoPromises[nombre]; }
+  }
+  async function subirJSONNombrado(nombre, obj, creando = false) {
+    await ensureFolder();
+    const boundary = 'vsslog_boundary';
+    const metadata = creando
+      ? { name: nombre, parents: [folderId], mimeType: 'application/json' }
+      : { mimeType: 'application/json' };
+    const fileId = _archivoIds[nombre];
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(obj)}\r\n--${boundary}--`;
+    const url = creando
+      ? 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart'
+      : `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+    const resp = await api(url, {
+      method: creando ? 'POST' : 'PATCH',
+      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body
+    });
+    const data = await resp.json();
+    return data.id;
+  }
+  async function subirArchivoNombrado(nombre, obj) {
+    await ensureArchivo(nombre);
+    await subirJSONNombrado(nombre, obj, false);
+  }
+  async function bajarArchivoNombrado(nombre) {
+    const fileId = await ensureArchivo(nombre);
+    const resp = await api(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
+    return resp.json();
+  }
+
   return {
     init, conectar, forzarReconexion,
     subirBackup, bajarBackup,
+    subirArchivoNombrado, bajarArchivoNombrado,
     get conectado() { return !!accessToken; }
   };
 })();
