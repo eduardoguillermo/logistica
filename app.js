@@ -4681,13 +4681,35 @@ function exportarExcel(){
 
   XLSX.writeFile(wb,'vss_logistica_'+today()+'.xlsx');
 }
-function exportarADrive(){
-  var json=JSON.stringify(DB,null,2);
-  var blob=new Blob([json],{type:'application/json'});
-  var file=new File([blob],'vss_logistica_backup_'+today()+'.json',{type:'application/json'});
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
-    navigator.share({files:[file],title:'VSS Logistica Backup '+today()}).catch(function(e){if(e.name!=='AbortError') exportarJSON();});
-  } else { exportarJSON(); }
+async function exportarADrive(){
+  if(typeof DriveSync==='undefined' || !DriveSync.conectado){
+    alert('Conectá Drive primero desde Configuración → Sincronización de Stock (usa la misma conexión).');
+    return;
+  }
+  try{
+    await DriveSync.subirArchivoNombrado('vss-logistica-backup-completo.json', DB);
+    alert('Backup completo subido a Drive (carpeta "VSSLogisticaStock", archivo "vss-logistica-backup-completo.json").');
+  }catch(e){
+    console.error('Error al subir backup completo', e);
+    alert('Error al subir el backup: '+e.message);
+  }
+}
+async function importarDeDrive(){
+  if(typeof DriveSync==='undefined' || !DriveSync.conectado){
+    alert('Conectá Drive primero desde Configuración → Sincronización de Stock.');
+    return;
+  }
+  if(!confirm('Esto reemplazará TODOS los datos actuales por el último backup completo subido a Drive. Confirmar?')) return;
+  try{
+    var data = await DriveSync.bajarArchivoNombrado('vss-logistica-backup-completo.json');
+    if(!data || !data.componentes){ alert('No hay un backup completo válido en Drive todavía.'); return; }
+    DB=data;save();
+    alert('Backup restaurado desde Drive correctamente.');
+    location.reload();
+  }catch(e){
+    console.error('Error al bajar backup completo', e);
+    alert('Error al bajar el backup: '+e.message);
+  }
 }
 function importarJSON(input){
   var file=input.files[0];if(!file) return;
